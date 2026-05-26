@@ -363,6 +363,7 @@ function AdminPage({
   const default_selected_id =
     grooming_reservations[0]?.id ?? scheduled_reservations[0]?.id
   const [selected_id, set_selected_id] = useState(default_selected_id)
+  const [pending_status, set_pending_status] = useState(null)
   const selected_reservation = useMemo(
     () =>
       reservations.find((reservation) => reservation.id === selected_id) ??
@@ -370,36 +371,55 @@ function AdminPage({
     [default_selected_id, reservations, selected_id],
   )
 
-  const update_status_to = (target_code) => {
-    update_reservation(
-      selected_reservation.id,
-      (reservation) => {
-      const updated_time = get_current_time()
-      const existing_times = new Map(
-        reservation.timeline.map((item) => [item.code, item.time]),
-      )
+  const request_status_update = (target_code) => {
+    set_pending_status({
+      reservation: selected_reservation,
+      target_code,
+    })
+  }
 
-      return {
-        ...reservation,
-        current_code: target_code,
-        updated_at: updated_time,
-        timeline: status_entries
-          .filter((status) => status.code <= target_code)
-          .map((status) => ({
-            code: status.code,
-            time: existing_times.get(status.code) ?? updated_time,
-          })),
-      }
+  const close_status_modal = () => {
+    set_pending_status(null)
+  }
+
+  const confirm_status_update = () => {
+    if (!pending_status) return
+
+    const { reservation: pending_reservation, target_code } = pending_status
+    const previous_code = pending_reservation.current_code
+
+    update_reservation(
+      pending_reservation.id,
+      (reservation) => {
+        const updated_time = get_current_time()
+        const existing_times = new Map(
+          reservation.timeline.map((item) => [item.code, item.time]),
+        )
+
+        return {
+          ...reservation,
+          current_code: target_code,
+          updated_at: updated_time,
+          timeline: status_entries
+            .filter((status) => status.code <= target_code)
+            .map((status) => ({
+              code: status.code,
+              time: existing_times.get(status.code) ?? updated_time,
+            })),
+        }
       },
       {
         type: 'status',
         payload: (reservation) => ({
+          previous_code,
           current_code: reservation.current_code,
           updated_at: reservation.updated_at,
           timeline: reservation.timeline,
+          dog_name: reservation.dog.name,
         }),
       },
     )
+    close_status_modal()
   }
 
   const update_field = (field, value) => {
@@ -528,7 +548,7 @@ function AdminPage({
                         <button
                           className="status_change_button"
                           type="button"
-                          onClick={() => update_status_to(next_status.code)}
+                          onClick={() => request_status_update(next_status.code)}
                           disabled={
                             next_status.code === selected_reservation.current_code
                           }
@@ -574,7 +594,68 @@ function AdminPage({
           </section>
         </section>
       </section>
+      {pending_status ? (
+        <StatusConfirmModal
+          reservation={pending_status.reservation}
+          current_label={statusCodes[pending_status.reservation.current_code]}
+          next_label={statusCodes[pending_status.target_code]}
+          on_cancel={close_status_modal}
+          on_confirm={confirm_status_update}
+        />
+      ) : null}
     </main>
+  )
+}
+
+function StatusConfirmModal({
+  reservation,
+  current_label,
+  next_label,
+  on_cancel,
+  on_confirm,
+}) {
+  return (
+    <div className="modal_backdrop" role="presentation">
+      <section
+        className="status_confirm_modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="status_confirm_title"
+      >
+        <div className="modal_header">
+          <span className="page_label">Status change</span>
+          <h2 id="status_confirm_title">상태를 변경할까요?</h2>
+        </div>
+
+        <div className="modal_summary">
+          <div>
+            <span>강아지 이름</span>
+            <strong>{reservation.dog.name}</strong>
+          </div>
+          <div>
+            <span>견종</span>
+            <strong>{reservation.dog.breed}</strong>
+          </div>
+          <div>
+            <span>현재 단계</span>
+            <strong>{current_label}</strong>
+          </div>
+          <div>
+            <span>다음 단계</span>
+            <strong>{next_label}</strong>
+          </div>
+        </div>
+
+        <div className="modal_actions">
+          <button className="secondary_button" type="button" onClick={on_cancel}>
+            취소
+          </button>
+          <button className="primary_button" type="button" onClick={on_confirm}>
+            맞아요, 변경하기
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }
 

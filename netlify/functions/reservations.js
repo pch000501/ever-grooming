@@ -32,6 +32,18 @@ const STATUS_STARTED_COLUMNS = {
   7: 'picked_up_at',
 }
 
+const STATUS_KEYS = {
+  '-1': 'visit_waiting',
+  0: 'bath_ready',
+  1: 'bath',
+  2: 'extra_care',
+  3: 'grooming',
+  4: 'completed',
+  5: 'pickup_waiting',
+  6: 'daycare',
+  7: 'picked_up',
+}
+
 const BREED_PHOTOS = [
   {
     match: '푸들',
@@ -183,6 +195,22 @@ function to_time(value) {
   if (!match) return String(value)
 
   return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
+function get_korea_timestamp() {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+
+  return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`
 }
 
 function get_photo_url(breed) {
@@ -359,6 +387,19 @@ async function update_cell(sheet_name, row_number, column_index, value) {
   })
 }
 
+async function append_row(sheet_name, values) {
+  await sheets_request(
+    `/values/${sheet_name}!A:Z:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        majorDimension: 'ROWS',
+        values: [values],
+      }),
+    },
+  )
+}
+
 async function update_cells(sheet_name, row_number, fields) {
   const rows = await get_sheet_rows(sheet_name)
   const headers = rows[0] ?? []
@@ -406,6 +447,21 @@ async function update_reservation_fields(reservation_id, fields) {
   }
 }
 
+async function append_status_log(reservation_id, status_payload) {
+  const changed_at = get_korea_timestamp()
+  const previous_code = Number(status_payload.previous_code)
+  const current_code = Number(status_payload.current_code)
+
+  await append_row(SHEET_NAMES.statusLog, [
+    `log_${Date.now()}`,
+    reservation_id,
+    STATUS_KEYS[previous_code] ?? String(previous_code),
+    STATUS_KEYS[current_code] ?? String(current_code),
+    changed_at,
+    status_payload.changed_by || '관리자',
+  ])
+}
+
 async function update_grooming_status(reservation_id, status_payload) {
   const status_row_number = await find_row_number(
     SHEET_NAMES.groomingStatus,
@@ -436,6 +492,7 @@ async function update_grooming_status(reservation_id, status_payload) {
     update_cells(SHEET_NAMES.reservations, reservation_row_number, {
       reservation_status: current_code < 0 ? 'reserved' : 'in_progress',
     }),
+    append_status_log(reservation_id, status_payload),
   ])
 }
 
