@@ -1,0 +1,474 @@
+import { createSign } from 'node:crypto'
+
+const SHEET_NAMES = {
+  customers: 'CUSTOMERS',
+  dogs: 'DOGS',
+  reservations: 'RESERVATIONS',
+  groomingStatus: 'GROOMING_STATUS',
+  statusLog: 'STATUS_LOG',
+  statusCodes: 'STATUS_CODES',
+  designers: 'DESIGNERS',
+}
+
+const FALLBACK_STATUS_CODES = {
+  '-1': '방문 대기 중',
+  0: '목욕 준비 중',
+  1: '목욕 중',
+  2: '추가 케어 중',
+  3: '미용 중',
+  4: '미용 완료',
+  5: '픽업 대기 중',
+  6: '데이케어 중',
+  7: '픽업 완료',
+}
+
+const STATUS_STARTED_COLUMNS = {
+  1: 'bath_started_at',
+  2: 'extra_care_started_at',
+  3: 'grooming_started_at',
+  4: 'completed_at',
+  5: 'pickup_waiting_at',
+  6: 'daycare_started_at',
+  7: 'picked_up_at',
+}
+
+const BREED_PHOTOS = [
+  {
+    match: '푸들',
+    url: 'https://images.unsplash.com/photo-1591946614720-90a587da4a36?auto=format&fit=crop&w=600&q=80',
+  },
+  {
+    match: '말티즈',
+    url: 'https://images.pexels.com/photos/6784803/pexels-photo-6784803.jpeg?auto=compress&cs=tinysrgb&w=600',
+  },
+  {
+    match: '포메',
+    url: 'https://images.pexels.com/photos/14973510/pexels-photo-14973510.jpeg?auto=compress&cs=tinysrgb&w=600',
+  },
+  {
+    match: '비숑',
+    url: 'https://images.pexels.com/photos/15845917/pexels-photo-15845917.jpeg?auto=compress&cs=tinysrgb&w=600',
+  },
+]
+
+const DEFAULT_DOG_PHOTO =
+  'https://images.unsplash.com/photo-1583512603805-3cc6b41f3edb?auto=format&fit=crop&w=600&q=80'
+
+const json_headers = {
+  'Content-Type': 'application/json; charset=utf-8',
+}
+
+function json_response(statusCode, body) {
+  return {
+    statusCode,
+    headers: json_headers,
+    body: JSON.stringify(body),
+  }
+}
+
+function base64url(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replaceAll('=', '')
+}
+
+function get_private_key() {
+  return process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n')
+}
+
+function assert_google_env() {
+  const missing = [
+    'GOOGLE_SHEET_ID',
+    'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+    'GOOGLE_PRIVATE_KEY',
+  ].filter((key) => !process.env[key])
+
+  if (missing.length > 0) {
+    throw new Error(`Missing env vars: ${missing.join(', ')}`)
+  }
+}
+
+function create_jwt() {
+  const now = Math.floor(Date.now() / 1000)
+  const unsigned_token = `${base64url(
+    JSON.stringify({ alg: 'RS256', typ: 'JWT' }),
+  )}.${base64url(
+    JSON.stringify({
+      iss: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now,
+    }),
+  )}`
+  const signature = createSign('RSA-SHA256')
+    .update(unsigned_token)
+    .sign(get_private_key())
+
+  return `${unsigned_token}.${base64url(signature)}`
+}
+
+async function get_access_token() {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: create_jwt(),
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Google auth failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.access_token
+}
+
+async function sheets_request(path, options = {}) {
+  const access_token = await get_access_token()
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}${path}`,
+    {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    },
+  )
+
+  if (!response.ok) {
+    const error_text = await response.text()
+    throw new Error(`Sheets request failed: ${response.status} ${error_text}`)
+  }
+
+  return response.json()
+}
+
+function rows_to_objects(values = []) {
+  const [headers = [], ...rows] = values
+
+  return rows
+    .filter((row) => row.some(Boolean))
+    .map((row) =>
+      headers.reduce((object, header, index) => {
+        object[header] = row[index] ?? ''
+        return object
+      }, {}),
+    )
+}
+
+function parse_bool(value) {
+  return value === true || value === 'TRUE' || value === 'true' || value === '1'
+}
+
+function parse_list(value) {
+  if (!value) return []
+
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function to_time(value) {
+  if (!value) return ''
+
+  const match = String(value).match(/(\d{1,2}):(\d{2})/)
+  if (!match) return String(value)
+
+  return `${match[1].padStart(2, '0')}:${match[2]}`
+}
+
+function get_photo_url(breed) {
+  return BREED_PHOTOS.find((photo) => breed?.includes(photo.match))?.url ?? DEFAULT_DOG_PHOTO
+}
+
+function get_status_codes(rows) {
+  const sheet_codes = rows_to_objects(rows).reduce((codes, row) => {
+    codes[String(row.status_code)] = row.status_label
+    return codes
+  }, {})
+
+  return {
+    ...FALLBACK_STATUS_CODES,
+    ...sheet_codes,
+    '-1': FALLBACK_STATUS_CODES['-1'],
+  }
+}
+
+function find_by(items, key, value) {
+  return items.find((item) => item[key] === value)
+}
+
+function get_age(birth_year) {
+  const year = Number(birth_year)
+  if (!year) return ''
+
+  return `${new Date().getFullYear() - year}살`
+}
+
+function build_timeline(status, reservation) {
+  const entries = [{ code: -1, time: to_time(reservation.reservation_time) }]
+
+  Object.entries(STATUS_STARTED_COLUMNS).forEach(([code, column]) => {
+    if (status[column]) {
+      entries.push({ code: Number(code), time: to_time(status[column]) })
+    }
+  })
+
+  return entries
+}
+
+function get_current_status_code(status, reservation) {
+  if (reservation.reservation_status === 'reserved') return -1
+
+  return Number(status?.current_status_code ?? -1)
+}
+
+function normalize_sheet_data(sheet_data) {
+  const customers = rows_to_objects(sheet_data.valueRanges[0]?.values).map(
+    (customer) => ({
+      id: customer.customer_id,
+      name: customer.customer_name,
+      phone: customer.phone,
+      preferred_contact: parse_bool(customer.kakao_opt_in) ? '카카오톡' : '전화',
+      visit_count: customer.visit_count,
+      customer_note: customer.customer_note,
+    }),
+  )
+  const dogs = rows_to_objects(sheet_data.valueRanges[1]?.values).map((dog) => ({
+    id: dog.dog_id,
+    customer_id: dog.customer_id,
+    name: dog.dog_name,
+    breed: dog.breed,
+    age: get_age(dog.birth_year),
+    weight: `${dog.weight}kg`,
+    gender: dog.gender,
+    temperament: dog.personality,
+    allergies: dog.allergy,
+    skin_condition: dog.skin_condition,
+    dog_note: dog.dog_note,
+    photo_url: get_photo_url(dog.breed),
+  }))
+  const raw_reservations = rows_to_objects(sheet_data.valueRanges[2]?.values)
+  const raw_statuses = rows_to_objects(sheet_data.valueRanges[3]?.values)
+  const designers = rows_to_objects(sheet_data.valueRanges[6]?.values)
+
+  const reservations = raw_reservations.map((reservation) => {
+    const status = find_by(raw_statuses, 'reservation_id', reservation.reservation_id) ?? {}
+    const designer = find_by(designers, 'designer_id', reservation.designer_id)
+
+    return {
+      id: reservation.reservation_id,
+      customer_id: reservation.customer_id,
+      dog_id: reservation.dog_id,
+      date: reservation.reservation_date,
+      check_in_time: to_time(reservation.reservation_time),
+      service: reservation.service_type,
+      add_ons: parse_list(reservation.additional_service),
+      groomer: designer?.designer_name ?? reservation.designer_id,
+      pickup_time: to_time(status.pickup_time || status.estimated_end_time),
+      internal_note: status.internal_memo || reservation.consultation_note,
+      daycare_requested: parse_bool(status.daycare_enabled),
+      reservation_status: reservation.reservation_status,
+      consultation_note: reservation.consultation_note,
+    }
+  })
+
+  const groomingStatus = raw_statuses.map((status) => {
+    const reservation = find_by(
+      raw_reservations,
+      'reservation_id',
+      status.reservation_id,
+    )
+    const current_code = get_current_status_code(status, reservation ?? {})
+
+    return {
+      reservation_id: status.reservation_id,
+      current_code,
+      updated_at: to_time(status.updated_at),
+      timeline: build_timeline(status, reservation ?? {}),
+    }
+  })
+
+  return {
+    customers,
+    dogs,
+    reservations,
+    groomingStatus,
+    statusCodes: get_status_codes(sheet_data.valueRanges[5]?.values),
+  }
+}
+
+async function get_sheet_data() {
+  const params = new URLSearchParams()
+
+  Object.values(SHEET_NAMES).forEach((sheet_name) => {
+    params.append('ranges', `${sheet_name}!A:Z`)
+  })
+  params.set('majorDimension', 'ROWS')
+
+  const sheet_data = await sheets_request(`/values:batchGet?${params}`)
+  return normalize_sheet_data(sheet_data)
+}
+
+async function get_sheet_rows(sheet_name) {
+  const data = await sheets_request(`/values/${sheet_name}!A:Z`)
+  return data.values ?? []
+}
+
+function find_column(headers, key) {
+  const index = headers.indexOf(key)
+
+  if (index === -1) {
+    throw new Error(`Column "${key}" not found`)
+  }
+
+  return index
+}
+
+function column_letter(index) {
+  let column = ''
+  let number = index + 1
+
+  while (number > 0) {
+    const remainder = (number - 1) % 26
+    column = String.fromCharCode(65 + remainder) + column
+    number = Math.floor((number - 1) / 26)
+  }
+
+  return column
+}
+
+async function update_cell(sheet_name, row_number, column_index, value) {
+  const range = `${sheet_name}!${column_letter(column_index)}${row_number}`
+
+  await sheets_request(`/values/${range}?valueInputOption=USER_ENTERED`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      range,
+      majorDimension: 'ROWS',
+      values: [[value]],
+    }),
+  })
+}
+
+async function update_cells(sheet_name, row_number, fields) {
+  const rows = await get_sheet_rows(sheet_name)
+  const headers = rows[0] ?? []
+
+  await Promise.all(
+    Object.entries(fields).map(([key, value]) =>
+      update_cell(sheet_name, row_number, find_column(headers, key), value),
+    ),
+  )
+}
+
+async function find_row_number(sheet_name, id_column_name, id) {
+  const rows = await get_sheet_rows(sheet_name)
+  const headers = rows[0] ?? []
+  const id_column = find_column(headers, id_column_name)
+  const row_index = rows.findIndex((row, index) => {
+    return index > 0 && row[id_column] === id
+  })
+
+  if (row_index === -1) {
+    throw new Error(`${sheet_name} row "${id}" not found`)
+  }
+
+  return row_index + 1
+}
+
+async function update_reservation_fields(reservation_id, fields) {
+  const row_number = await find_row_number(
+    SHEET_NAMES.groomingStatus,
+    'reservation_id',
+    reservation_id,
+  )
+  const updates = {}
+
+  if (Object.hasOwn(fields, 'internal_note')) {
+    updates.internal_memo = fields.internal_note
+  }
+
+  if (Object.hasOwn(fields, 'daycare_requested')) {
+    updates.daycare_enabled = fields.daycare_requested ? 'TRUE' : 'FALSE'
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await update_cells(SHEET_NAMES.groomingStatus, row_number, updates)
+  }
+}
+
+async function update_grooming_status(reservation_id, status_payload) {
+  const status_row_number = await find_row_number(
+    SHEET_NAMES.groomingStatus,
+    'reservation_id',
+    reservation_id,
+  )
+  const reservation_row_number = await find_row_number(
+    SHEET_NAMES.reservations,
+    'reservation_id',
+    reservation_id,
+  )
+  const current_code = Number(status_payload.current_code)
+  const updated_at = status_payload.updated_at
+  const fields = {
+    current_status_code: String(current_code),
+    current_status_label:
+      FALLBACK_STATUS_CODES[String(current_code)] ?? String(current_code),
+    updated_at,
+  }
+  const started_column = STATUS_STARTED_COLUMNS[current_code]
+
+  if (started_column) {
+    fields[started_column] = updated_at
+  }
+
+  await Promise.all([
+    update_cells(SHEET_NAMES.groomingStatus, status_row_number, fields),
+    update_cells(SHEET_NAMES.reservations, reservation_row_number, {
+      reservation_status: current_code < 0 ? 'reserved' : 'in_progress',
+    }),
+  ])
+}
+
+export async function handler(event) {
+  try {
+    assert_google_env()
+
+    if (event.httpMethod === 'GET') {
+      return json_response(200, await get_sheet_data())
+    }
+
+    if (event.httpMethod === 'PATCH') {
+      const body = JSON.parse(event.body || '{}')
+
+      if (!body.reservation_id) {
+        return json_response(400, { message: 'reservation_id is required' })
+      }
+
+      if (body.type === 'status') {
+        await update_grooming_status(body.reservation_id, body.payload)
+      }
+
+      if (body.type === 'reservation') {
+        await update_reservation_fields(body.reservation_id, body.payload)
+      }
+
+      return json_response(200, await get_sheet_data())
+    }
+
+    return json_response(405, { message: 'Method not allowed' })
+  } catch (error) {
+    return json_response(500, {
+      message: error.message,
+    })
+  }
+}
