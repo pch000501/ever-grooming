@@ -681,6 +681,38 @@
   font-size: 15px;
 }
 
+.message_confirm_box,
+.message_state_box {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.message_confirm_box {
+  border: 1px solid rgba(174, 189, 155, 0.72);
+  background: var(--mint_soft);
+}
+
+.message_confirm_box strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.message_confirm_box span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.message_state_box {
+  border: 1px solid var(--line);
+  background: var(--beige_soft);
+  color: var(--beige_dark);
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .modal_actions {
   display: flex;
   justify-content: end;

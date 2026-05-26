@@ -9,6 +9,7 @@ EVER Grooming demo web app for reservation, grooming status, and customer status
 - React Router
 - Netlify Functions
 - Google Sheets API
+- Solapi Kakao AlimTalk
 
 ## Local Development
 
@@ -44,6 +45,17 @@ GOOGLE_PRIVATE_KEY
 ```
 
 See `GOOGLE_SHEETS_SETUP.md` for the sheet structure and setup details.
+
+Optional Solapi environment variables for Kakao status notifications:
+
+```text
+SOLAPI_API_KEY
+SOLAPI_API_SECRET
+SOLAPI_FROM
+SOLAPI_PFID
+SOLAPI_TEMPLATE_ID
+SOLAPI_DISABLE_SMS
+```
 
 ## Netlify
 

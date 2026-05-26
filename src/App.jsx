@@ -166,6 +166,10 @@ async function patch_reservation_to_api(reservation_id, type, payload) {
   return response.json()
 }
 
+async function send_kakao_status_message(reservation_id, payload) {
+  return patch_reservation_to_api(reservation_id, 'kakao_status', payload)
+}
+
 function App() {
   const [reservation_list, set_reservation_list] = useState(build_reservations)
   const [data_source, set_data_source] = useState('mock')
@@ -371,6 +375,9 @@ function AdminPage({
     grooming_reservations[0]?.id ?? scheduled_reservations[0]?.id
   const [selected_id, set_selected_id] = useState(default_selected_id)
   const [pending_status, set_pending_status] = useState(null)
+  const [message_prompt, set_message_prompt] = useState(null)
+  const [message_confirm, set_message_confirm] = useState(false)
+  const [message_state, set_message_state] = useState('')
   const selected_reservation = useMemo(
     () =>
       reservations.find((reservation) => reservation.id === selected_id) ??
@@ -394,6 +401,7 @@ function AdminPage({
 
     const { reservation: pending_reservation, target_code } = pending_status
     const previous_code = pending_reservation.current_code
+    const next_label = statusCodes[target_code]
 
     update_reservation(
       pending_reservation.id,
@@ -427,6 +435,40 @@ function AdminPage({
       },
     )
     close_status_modal()
+    set_message_prompt({
+      reservation: {
+        ...pending_reservation,
+        current_code: target_code,
+      },
+      status_label: next_label,
+    })
+    set_message_confirm(false)
+    set_message_state('')
+  }
+
+  const close_message_prompt = () => {
+    set_message_prompt(null)
+    set_message_confirm(false)
+    set_message_state('')
+  }
+
+  const request_message_confirm = () => {
+    set_message_confirm(true)
+    set_message_state('')
+  }
+
+  const confirm_message_send = async () => {
+    if (!message_prompt) return
+
+    try {
+      set_message_state('전송 중')
+      await send_kakao_status_message(message_prompt.reservation.id, {
+        status_label: message_prompt.status_label,
+      })
+      set_message_state('전송 완료')
+    } catch (error) {
+      set_message_state(error.message || '전송 실패')
+    }
   }
 
   const update_field = (field, value) => {
@@ -610,6 +652,17 @@ function AdminPage({
           on_confirm={confirm_status_update}
         />
       ) : null}
+      {message_prompt ? (
+        <KakaoMessageModal
+          reservation={message_prompt.reservation}
+          status_label={message_prompt.status_label}
+          confirming={message_confirm}
+          message_state={message_state}
+          on_cancel={close_message_prompt}
+          on_request_confirm={request_message_confirm}
+          on_confirm_send={confirm_message_send}
+        />
+      ) : null}
     </main>
   )
 }
@@ -660,6 +713,91 @@ function StatusConfirmModal({
           <button className="primary_button" type="button" onClick={on_confirm}>
             맞아요, 변경하기
           </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function KakaoMessageModal({
+  reservation,
+  status_label,
+  confirming,
+  message_state,
+  on_cancel,
+  on_request_confirm,
+  on_confirm_send,
+}) {
+  const sent = message_state === '전송 완료'
+
+  return (
+    <div className="modal_backdrop" role="presentation">
+      <section
+        className="status_confirm_modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="kakao_message_title"
+      >
+        <div className="modal_header">
+          <span className="page_label">Kakao message</span>
+          <h2 id="kakao_message_title">
+            보호자님께 카카오톡 메시지를 전송하여 미용 상태를 전달해드리겠어요?
+          </h2>
+        </div>
+
+        <div className="modal_summary">
+          <div>
+            <span>강아지 이름</span>
+            <strong>{reservation.dog.name}</strong>
+          </div>
+          <div>
+            <span>견종</span>
+            <strong>{reservation.dog.breed}</strong>
+          </div>
+          <div>
+            <span>전달 상태</span>
+            <strong>{status_label}</strong>
+          </div>
+          <div>
+            <span>보호자</span>
+            <strong>{reservation.customer.name}</strong>
+          </div>
+        </div>
+
+        {confirming ? (
+          <div className="message_confirm_box">
+            <strong>정말 카카오톡 메시지를 전송할까요?</strong>
+            <span>전송 후에는 보호자님께 바로 안내됩니다.</span>
+          </div>
+        ) : null}
+
+        {message_state ? (
+          <div className="message_state_box">{message_state}</div>
+        ) : null}
+
+        <div className="modal_actions">
+          <button className="secondary_button" type="button" onClick={on_cancel}>
+            {sent ? '닫기' : '나중에'}
+          </button>
+          {!sent && !confirming ? (
+            <button
+              className="primary_button"
+              type="button"
+              onClick={on_request_confirm}
+            >
+              전송하기
+            </button>
+          ) : null}
+          {!sent && confirming ? (
+            <button
+              className="primary_button"
+              type="button"
+              onClick={on_confirm_send}
+              disabled={message_state === '전송 중'}
+            >
+              확인하고 전송하기
+            </button>
+          ) : null}
         </div>
       </section>
     </div>

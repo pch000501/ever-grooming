@@ -1,4 +1,5 @@
 import { createSign } from 'node:crypto'
+import { SolapiMessageService } from 'solapi'
 
 const SHEET_NAMES = {
   customers: 'CUSTOMERS',
@@ -179,6 +180,10 @@ function parse_bool(value) {
   return value === true || value === 'TRUE' || value === 'true' || value === '1'
 }
 
+function normalize_phone(value) {
+  return String(value ?? '').replace(/\D/g, '')
+}
+
 function parse_status_code(value, fallback = -1) {
   const code = Number(value)
 
@@ -238,6 +243,20 @@ function get_status_codes(rows) {
 
 function find_by(items, key, value) {
   return items.find((item) => item[key] === value)
+}
+
+function require_solapi_env() {
+  const missing = [
+    'SOLAPI_API_KEY',
+    'SOLAPI_API_SECRET',
+    'SOLAPI_FROM',
+    'SOLAPI_PFID',
+    'SOLAPI_TEMPLATE_ID',
+  ].filter((key) => !process.env[key])
+
+  if (missing.length > 0) {
+    throw new Error(`Missing Solapi env vars: ${missing.join(', ')}`)
+  }
 }
 
 function get_age(birth_year) {
@@ -526,6 +545,87 @@ async function update_grooming_status(reservation_id, status_payload) {
   ])
 }
 
+function build_kakao_variables(reservation, customer, dog, status, status_label) {
+  return {
+    '#{보호자명}': customer.customer_name,
+    '#{강아지명}': dog.dog_name,
+    '#{견종}': dog.breed,
+    '#{상태}': status_label,
+    '#{픽업시간}': status.pickup_time || status.estimated_end_time || '',
+  }
+}
+
+async function send_kakao_status_message(reservation_id, payload = {}) {
+  require_solapi_env()
+
+  const [reservation_rows, customer_rows, dog_rows, status_rows] =
+    await Promise.all([
+      get_sheet_rows(SHEET_NAMES.reservations),
+      get_sheet_rows(SHEET_NAMES.customers),
+      get_sheet_rows(SHEET_NAMES.dogs),
+      get_sheet_rows(SHEET_NAMES.groomingStatus),
+    ])
+  const reservations = rows_to_objects(reservation_rows)
+  const customers = rows_to_objects(customer_rows)
+  const dogs = rows_to_objects(dog_rows)
+  const statuses = rows_to_objects(status_rows)
+  const reservation = find_by(reservations, 'reservation_id', reservation_id)
+
+  if (!reservation) {
+    throw new Error(`Reservation "${reservation_id}" not found`)
+  }
+
+  const customer = find_by(customers, 'customer_id', reservation.customer_id)
+  const dog = find_by(dogs, 'dog_id', reservation.dog_id)
+  const status = find_by(statuses, 'reservation_id', reservation_id) ?? {}
+
+  if (!customer) {
+    throw new Error(`Customer "${reservation.customer_id}" not found`)
+  }
+
+  if (!dog) {
+    throw new Error(`Dog "${reservation.dog_id}" not found`)
+  }
+
+  const to = normalize_phone(customer.phone)
+
+  if (!to) {
+    throw new Error(`Customer "${customer.customer_id}" has no phone number`)
+  }
+
+  const status_label =
+    payload.status_label ||
+    status.current_status_label ||
+    FALLBACK_STATUS_CODES[String(status.current_status_code)] ||
+    ''
+  const messageService = new SolapiMessageService(
+    process.env.SOLAPI_API_KEY,
+    process.env.SOLAPI_API_SECRET,
+  )
+  const result = await messageService.send({
+    to,
+    from: normalize_phone(process.env.SOLAPI_FROM),
+    kakaoOptions: {
+      pfId: process.env.SOLAPI_PFID,
+      templateId: process.env.SOLAPI_TEMPLATE_ID,
+      variables: build_kakao_variables(
+        reservation,
+        customer,
+        dog,
+        status,
+        status_label,
+      ),
+      disableSms: process.env.SOLAPI_DISABLE_SMS === 'true',
+    },
+  })
+
+  return {
+    result,
+    sent_to: to,
+    status_label,
+  }
+}
+
 export async function handler(event) {
   try {
     assert_google_env()
@@ -547,6 +647,19 @@ export async function handler(event) {
 
       if (body.type === 'reservation') {
         await update_reservation_fields(body.reservation_id, body.payload)
+      }
+
+      if (body.type === 'kakao_status') {
+        const result = await send_kakao_status_message(
+          body.reservation_id,
+          body.payload,
+        )
+
+        return json_response(200, {
+          ok: true,
+          message: 'Kakao status message sent',
+          result,
+        })
       }
 
       return json_response(200, await get_sheet_data())
