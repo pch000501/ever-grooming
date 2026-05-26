@@ -10,6 +10,9 @@
   align-content: start;
   gap: 22px;
   padding: 32px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 242, 234, 0.95)),
+    var(--bg);
 }
 
 .home_top {
@@ -17,7 +20,7 @@
   align-items: end;
   justify-content: space-between;
   gap: 20px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(174, 189, 155, 0.38);
   padding-bottom: 20px;
 }
 
@@ -25,7 +28,7 @@
 .page_label {
   display: inline-flex;
   width: fit-content;
-  color: var(--gold);
+  color: var(--mint_dark);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
@@ -82,13 +85,13 @@
 }
 
 .data_source_badge span {
-  background: #eef4ef;
+  background: var(--mint_soft);
   color: var(--sage);
 }
 
 .data_source_badge small {
-  background: var(--surface_soft);
-  color: var(--muted);
+  background: var(--beige_soft);
+  color: var(--beige_dark);
 }
 
 .primary_link,
@@ -109,20 +112,25 @@
 
 .primary_link,
 .primary_button {
-  background: var(--ink);
+  background: var(--mint_dark);
   color: #ffffff;
+}
+
+.primary_link:hover,
+.primary_button:hover:not(:disabled) {
+  background: #5f7354;
 }
 
 .secondary_link,
 .daycare_toggle {
   border-color: var(--line);
-  background: var(--surface);
+  background: #fffdf8;
   color: var(--text);
 }
 
 .text_link {
   border-color: var(--line);
-  background: var(--surface_soft);
+  background: var(--beige_soft);
   color: var(--text);
 }
 
@@ -139,7 +147,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.86);
   box-shadow: var(--shadow);
 }
 
@@ -169,8 +177,8 @@
   height: 28px;
   place-items: center;
   border-radius: 999px;
-  background: var(--surface_soft);
-  color: var(--gold);
+  background: var(--mint_soft);
+  color: var(--mint_dark);
   font-size: 13px;
   font-weight: 900;
 }
@@ -188,14 +196,14 @@
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #ffffff;
+  background: #fffdf8;
   padding: 8px 10px;
   text-decoration: none;
 }
 
 .compact_reservation_item:hover {
-  border-color: rgba(179, 138, 70, 0.5);
-  background: #fffdf8;
+  border-color: rgba(174, 189, 155, 0.72);
+  background: var(--mint_soft);
 }
 
 .compact_reservation_item img {
@@ -235,7 +243,7 @@
 
 .compact_reservation_item em {
   border-radius: 999px;
-  background: #eef4ef;
+  background: var(--mint_soft);
   color: var(--sage);
   padding: 6px 9px;
   font-size: 12px;
@@ -254,6 +262,9 @@
 
 .admin_page {
   padding: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(244, 242, 234, 0.96)),
+    var(--bg);
 }
 
 .admin_header {
@@ -284,7 +295,7 @@
 .mobile_shell {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow);
 }
 
@@ -325,8 +336,8 @@
   height: 24px;
   place-items: center;
   border-radius: 999px;
-  background: var(--surface_soft);
-  color: var(--gold);
+  background: var(--beige_soft);
+  color: var(--beige_dark);
   font-size: 12px;
   font-weight: 900;
 }
@@ -359,8 +370,8 @@
 }
 
 .dog_list_item_active {
-  border-color: rgba(179, 138, 70, 0.45);
-  background: #faf6ee;
+  border-color: rgba(174, 189, 155, 0.72);
+  background: var(--mint_soft);
 }
 
 .dog_list_item img,
@@ -428,7 +439,7 @@
 
 .status_pill {
   border-radius: 999px;
-  background: #eef4ef;
+  background: var(--mint_soft);
   color: var(--sage);
   padding: 10px 14px;
   font-weight: 800;
@@ -486,7 +497,7 @@
   gap: 4px;
   margin-bottom: 14px;
   border-radius: 6px;
-  background: var(--surface_soft);
+  background: var(--beige_soft);
   padding: 14px;
 }
 
@@ -520,7 +531,7 @@
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #ffffff;
+  background: #fffdf8;
   padding: 8px 10px;
 }
 
@@ -543,8 +554,8 @@
 
 .admin_status_step em {
   border-radius: 999px;
-  background: #fbf5ea;
-  color: var(--gold);
+  background: var(--beige_soft);
+  color: var(--beige_dark);
   padding: 4px 8px;
   font-size: 12px;
   font-style: normal;
@@ -552,8 +563,8 @@
 }
 
 .admin_status_step_done {
-  border-color: rgba(111, 135, 113, 0.24);
-  background: #f7faf7;
+  border-color: rgba(113, 132, 99, 0.28);
+  background: var(--mint_soft);
 }
 
 .admin_status_step_done span {
@@ -566,12 +577,12 @@
 }
 
 .admin_status_step_current {
-  border-color: rgba(179, 138, 70, 0.52);
-  background: #fbf5ea;
+  border-color: rgba(174, 189, 155, 0.86);
+  background: linear-gradient(90deg, var(--mint_soft), var(--beige_soft));
 }
 
 .admin_status_step_current span {
-  background: var(--gold);
+  background: var(--mint_dark);
   color: #ffffff;
 }
 
@@ -585,7 +596,7 @@
   margin-left: 28px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--surface_soft);
+  background: #fffdf8;
   color: var(--muted);
   padding: 0 12px;
   font-size: 12px;
@@ -593,8 +604,9 @@
 }
 
 .status_change_button:hover:not(:disabled) {
-  border-color: rgba(179, 138, 70, 0.5);
-  color: var(--gold);
+  border-color: rgba(174, 189, 155, 0.72);
+  background: var(--mint_soft);
+  color: var(--mint_dark);
 }
 
 .status_change_button:disabled {
@@ -625,7 +637,7 @@
   gap: 4px;
   margin-bottom: 10px;
   border-radius: 6px;
-  background: #fbf5ea;
+  background: var(--beige_soft);
   padding: 14px;
 }
 
@@ -635,7 +647,7 @@
 }
 
 .estimate_box span {
-  color: var(--gold);
+  color: var(--beige_dark);
   font-size: 13px;
   font-weight: 800;
 }
@@ -683,7 +695,7 @@
   place-items: start center;
   padding: 24px 14px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(247, 245, 241, 0.96)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 242, 234, 0.96)),
     var(--bg);
 }
 
@@ -726,8 +738,8 @@
   display: grid;
   gap: 4px;
   margin-top: 12px;
-  border-color: rgba(179, 138, 70, 0.45);
-  background: #fbf5ea;
+  border-color: rgba(174, 189, 155, 0.72);
+  background: linear-gradient(135deg, var(--mint_soft), var(--beige_soft));
 }
 
 .highlight_status span,
@@ -743,7 +755,7 @@
 }
 
 .highlight_status small {
-  color: var(--gold);
+  color: var(--beige_dark);
   font-weight: 800;
 }
 
@@ -806,7 +818,7 @@
 }
 
 .timeline_item_current strong {
-  color: var(--gold);
+  color: var(--mint_dark);
 }
 
 .pickup_panel {
@@ -831,8 +843,8 @@
 }
 
 .daycare_toggle_active {
-  border-color: rgba(111, 135, 113, 0.45);
-  background: #eef4ef;
+  border-color: rgba(174, 189, 155, 0.72);
+  background: var(--mint_soft);
   color: var(--sage);
 }
 
