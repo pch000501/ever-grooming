@@ -290,8 +290,59 @@
 
 .dog_list_panel {
   display: grid;
-  gap: 8px;
+  gap: 14px;
   padding: 10px;
+}
+
+.admin_reservation_group {
+  display: grid;
+  gap: 8px;
+}
+
+.admin_reservation_group + .admin_reservation_group {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.admin_reservation_group_header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.admin_reservation_group_header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.admin_reservation_group_header span {
+  display: inline-grid;
+  min-width: 36px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface_soft);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin_reservation_group_list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin_empty_group {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 14px;
+  font-size: 13px;
+  text-align: center;
 }
 
 .dog_list_item {

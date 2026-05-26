@@ -343,10 +343,31 @@ function AdminPage({
   data_source,
   sync_message,
 }) {
-  const [selected_id, set_selected_id] = useState(reservations[0]?.id)
+  const grooming_reservations = useMemo(
+    () =>
+      reservations
+        .filter(
+          (reservation) =>
+            reservation.current_code > 0 && reservation.current_code < 7,
+        )
+        .sort((a, b) => b.current_code - a.current_code),
+    [reservations],
+  )
+  const scheduled_reservations = useMemo(
+    () =>
+      reservations
+        .filter((reservation) => reservation.current_code <= 0)
+        .sort((a, b) => a.check_in_time.localeCompare(b.check_in_time)),
+    [reservations],
+  )
+  const default_selected_id =
+    grooming_reservations[0]?.id ?? scheduled_reservations[0]?.id
+  const [selected_id, set_selected_id] = useState(default_selected_id)
   const selected_reservation = useMemo(
-    () => reservations.find((reservation) => reservation.id === selected_id),
-    [reservations, selected_id],
+    () =>
+      reservations.find((reservation) => reservation.id === selected_id) ??
+      reservations.find((reservation) => reservation.id === default_selected_id),
+    [default_selected_id, reservations, selected_id],
   )
 
   const update_status_to = (target_code) => {
@@ -417,23 +438,20 @@ function AdminPage({
 
       <section className="admin_layout">
         <aside className="dog_list_panel">
-          {reservations.map((reservation) => (
-            <button
-              className={`dog_list_item ${
-                reservation.id === selected_id ? 'dog_list_item_active' : ''
-              }`}
-              key={reservation.id}
-              type="button"
-              onClick={() => set_selected_id(reservation.id)}
-            >
-              <img src={reservation.dog.photo_url} alt="" />
-              <span>
-                <strong>{reservation.dog.name}</strong>
-                <small>{reservation.service}</small>
-              </span>
-              <em>{statusCodes[reservation.current_code]}</em>
-            </button>
-          ))}
+          <AdminReservationGroup
+            title="현재 진행 중"
+            count={grooming_reservations.length}
+            reservations={grooming_reservations}
+            selected_id={selected_reservation.id}
+            on_select={set_selected_id}
+          />
+          <AdminReservationGroup
+            title="예약 일정"
+            count={scheduled_reservations.length}
+            reservations={scheduled_reservations}
+            selected_id={selected_reservation.id}
+            on_select={set_selected_id}
+          />
         </aside>
 
         <section className="detail_panel">
@@ -557,6 +575,48 @@ function AdminPage({
         </section>
       </section>
     </main>
+  )
+}
+
+function AdminReservationGroup({
+  title,
+  count,
+  reservations,
+  selected_id,
+  on_select,
+}) {
+  return (
+    <section className="admin_reservation_group">
+      <div className="admin_reservation_group_header">
+        <h2>{title}</h2>
+        <span>{count}건</span>
+      </div>
+      <div className="admin_reservation_group_list">
+        {reservations.length > 0 ? (
+          reservations.map((reservation) => (
+            <button
+              className={`dog_list_item ${
+                reservation.id === selected_id ? 'dog_list_item_active' : ''
+              }`}
+              key={reservation.id}
+              type="button"
+              onClick={() => on_select(reservation.id)}
+            >
+              <img src={reservation.dog.photo_url} alt="" />
+              <span>
+                <strong>{reservation.dog.name}</strong>
+                <small>
+                  {reservation.check_in_time} · {reservation.service}
+                </small>
+              </span>
+              <em>{statusCodes[reservation.current_code]}</em>
+            </button>
+          ))
+        ) : (
+          <div className="admin_empty_group">해당 아이가 없습니다.</div>
+        )}
+      </div>
+    </section>
   )
 }
 
