@@ -179,6 +179,12 @@ function parse_bool(value) {
   return value === true || value === 'TRUE' || value === 'true' || value === '1'
 }
 
+function parse_status_code(value, fallback = -1) {
+  const code = Number(value)
+
+  return Number.isNaN(code) ? fallback : code
+}
+
 function parse_list(value) {
   if (!value) return []
 
@@ -411,7 +417,7 @@ async function update_cells(sheet_name, row_number, fields) {
   )
 }
 
-async function find_row_number(sheet_name, id_column_name, id) {
+async function get_row_by_id(sheet_name, id_column_name, id) {
   const rows = await get_sheet_rows(sheet_name)
   const headers = rows[0] ?? []
   const id_column = find_column(headers, id_column_name)
@@ -423,7 +429,16 @@ async function find_row_number(sheet_name, id_column_name, id) {
     throw new Error(`${sheet_name} row "${id}" not found`)
   }
 
-  return row_index + 1
+  return {
+    headers,
+    row: rows[row_index],
+    row_number: row_index + 1,
+  }
+}
+
+async function find_row_number(sheet_name, id_column_name, id) {
+  const row_data = await get_row_by_id(sheet_name, id_column_name, id)
+  return row_data.row_number
 }
 
 async function update_reservation_fields(reservation_id, fields) {
@@ -447,9 +462,8 @@ async function update_reservation_fields(reservation_id, fields) {
   }
 }
 
-async function append_status_log(reservation_id, status_payload) {
-  const changed_at = get_korea_timestamp()
-  const previous_code = Number(status_payload.previous_code)
+async function append_status_log(reservation_id, status_payload, previous_code) {
+  const changed_at = status_payload.changed_at ?? get_korea_timestamp()
   const current_code = Number(status_payload.current_code)
 
   await append_row(SHEET_NAMES.statusLog, [
@@ -463,7 +477,7 @@ async function append_status_log(reservation_id, status_payload) {
 }
 
 async function update_grooming_status(reservation_id, status_payload) {
-  const status_row_number = await find_row_number(
+  const status_row_data = await get_row_by_id(
     SHEET_NAMES.groomingStatus,
     'reservation_id',
     reservation_id,
@@ -473,8 +487,16 @@ async function update_grooming_status(reservation_id, status_payload) {
     'reservation_id',
     reservation_id,
   )
-  const current_code = Number(status_payload.current_code)
-  const updated_at = status_payload.updated_at
+  const current_status_column = find_column(
+    status_row_data.headers,
+    'current_status_code',
+  )
+  const previous_code = parse_status_code(
+    status_row_data.row[current_status_column],
+    parse_status_code(status_payload.previous_code),
+  )
+  const current_code = parse_status_code(status_payload.current_code, previous_code)
+  const updated_at = get_korea_timestamp()
   const fields = {
     current_status_code: String(current_code),
     current_status_label:
@@ -488,11 +510,19 @@ async function update_grooming_status(reservation_id, status_payload) {
   }
 
   await Promise.all([
-    update_cells(SHEET_NAMES.groomingStatus, status_row_number, fields),
+    update_cells(SHEET_NAMES.groomingStatus, status_row_data.row_number, fields),
     update_cells(SHEET_NAMES.reservations, reservation_row_number, {
       reservation_status: current_code < 0 ? 'reserved' : 'in_progress',
     }),
-    append_status_log(reservation_id, status_payload),
+    append_status_log(
+      reservation_id,
+      {
+        ...status_payload,
+        updated_at,
+        changed_at: updated_at,
+      },
+      previous_code,
+    ),
   ])
 }
 

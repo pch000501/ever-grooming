@@ -28,13 +28,20 @@ const estimated_tasks = [
   { key: 'grooming', label: '미용', minutes: 120 },
 ]
 
-function get_current_time() {
-  return new Intl.DateTimeFormat('ko-KR', {
+function get_current_timestamp() {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
     hour12: false,
-    timeZone: 'Asia/Seoul',
-  }).format(new Date())
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+
+  return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`
 }
 
 function add_minutes_to_time(time, minutes) {
@@ -391,7 +398,7 @@ function AdminPage({
     update_reservation(
       pending_reservation.id,
       (reservation) => {
-        const updated_time = get_current_time()
+        const updated_time = get_current_timestamp()
         const existing_times = new Map(
           reservation.timeline.map((item) => [item.code, item.time]),
         )
