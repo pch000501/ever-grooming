@@ -160,7 +160,16 @@ async function patch_reservation_to_api(reservation_id, type, payload) {
   })
 
   if (!response.ok) {
-    throw new Error(`API update failed: ${response.status}`)
+    let message = `API update failed: ${response.status}`
+
+    try {
+      const data = await response.json()
+      message = data.message ?? message
+    } catch {
+      message = await response.text()
+    }
+
+    throw new Error(message)
   }
 
   return response.json()

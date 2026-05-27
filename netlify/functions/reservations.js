@@ -181,7 +181,13 @@ function parse_bool(value) {
 }
 
 function normalize_phone(value) {
-  return String(value ?? '').replace(/\D/g, '')
+  const phone = String(value ?? '').replace(/\D/g, '')
+
+  if (phone.length === 10 && phone.startsWith('10')) {
+    return `0${phone}`
+  }
+
+  return phone
 }
 
 function parse_status_code(value, fallback = -1) {
@@ -584,9 +590,14 @@ async function send_kakao_status_message(reservation_id, payload = {}) {
   }
 
   const to = normalize_phone(customer.phone)
+  const from = normalize_phone(process.env.SOLAPI_FROM)
 
   if (!to) {
     throw new Error(`Customer "${customer.customer_id}" has no phone number`)
+  }
+
+  if (!from) {
+    throw new Error('SOLAPI_FROM is empty or invalid')
   }
 
   const status_label =
@@ -600,7 +611,7 @@ async function send_kakao_status_message(reservation_id, payload = {}) {
   )
   const result = await messageService.send({
     to,
-    from: normalize_phone(process.env.SOLAPI_FROM),
+    from,
     kakaoOptions: {
       pfId: process.env.SOLAPI_PFID,
       templateId: process.env.SOLAPI_TEMPLATE_ID,
@@ -657,7 +668,14 @@ export async function handler(event) {
 
     return json_response(405, { message: 'Method not allowed' })
   } catch (error) {
+    console.error('reservations function failed', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    })
+
     return json_response(500, {
+      name: error.name,
       message: error.message,
     })
   }
