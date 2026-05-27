@@ -265,6 +265,29 @@ function require_solapi_env() {
   }
 }
 
+function get_status_page_host() {
+  const base_url =
+    process.env.STATUS_PAGE_BASE_URL ||
+    process.env.URL ||
+    process.env.DEPLOY_PRIME_URL
+
+  if (!base_url) {
+    throw new Error('Missing STATUS_PAGE_BASE_URL or Netlify URL env var')
+  }
+
+  return base_url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+}
+
+function get_solapi_link_variable_name() {
+  const name = process.env.SOLAPI_STATUS_LINK_VARIABLE || 'LINK'
+
+  if (name.startsWith('#{') && name.endsWith('}')) {
+    return name
+  }
+
+  return `#{${name}}`
+}
+
 function get_age(birth_year) {
   const year = Number(birth_year)
   if (!year) return ''
@@ -551,9 +574,14 @@ async function update_grooming_status(reservation_id, status_payload) {
   ])
 }
 
-function build_kakao_variables(dog) {
+function build_status_page_link(reservation_id) {
+  return `${get_status_page_host()}/status/${reservation_id}`
+}
+
+function build_kakao_variables(dog, reservation_id) {
   return {
     '#{강아지명}': dog.dog_name,
+    [get_solapi_link_variable_name()]: build_status_page_link(reservation_id),
   }
 }
 
@@ -615,7 +643,7 @@ async function send_kakao_status_message(reservation_id, payload = {}) {
     kakaoOptions: {
       pfId: process.env.SOLAPI_PFID,
       templateId: process.env.SOLAPI_TEMPLATE_ID,
-      variables: build_kakao_variables(dog),
+      variables: build_kakao_variables(dog, reservation_id),
       disableSms: process.env.SOLAPI_DISABLE_SMS !== 'false',
     },
   })

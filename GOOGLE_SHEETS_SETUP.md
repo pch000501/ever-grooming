@@ -127,6 +127,8 @@ SOLAPI_FROM=솔라피에 등록된 발신번호
 SOLAPI_PFID=카카오 채널 연동 ID
 SOLAPI_TEMPLATE_ID=알림톡 템플릿 ID
 SOLAPI_DISABLE_SMS=true
+SOLAPI_STATUS_LINK_VARIABLE=LINK
+STATUS_PAGE_BASE_URL=https://beamish-parfait-eb804d.netlify.app
 ```
 
 현재 승인 템플릿 기준 값:
@@ -140,11 +142,28 @@ SOLAPI_TEMPLATE_ID=KA01TP260526105831615oZyEPTO5Keb
 
 `SOLAPI_DISABLE_SMS`는 선택값입니다. 현재 코드는 기본적으로 대체발송을 막습니다. 문자 대체발송을 켜려면 `false`로 설정합니다.
 
+`SOLAPI_STATUS_LINK_VARIABLE`은 Solapi 템플릿 버튼 URL에 사용한 변수명입니다. 버튼 URL을 `https://#{LINK}`로 설정했다면 값은 `LINK`로 둡니다.
+
+`STATUS_PAGE_BASE_URL`은 고객 상태 조회 화면의 기본 주소입니다. Netlify의 Production URL과 같으면 생략할 수 있지만, 커스텀 도메인이나 고정 주소를 쓰려면 명시합니다.
+
 현재 코드가 알림톡 템플릿에 전달하는 변수는 아래와 같습니다.
 
 ```text
 #{강아지명}
+#{LINK}
 ```
 
 Solapi 알림톡은 등록 및 승인된 템플릿으로만 발송됩니다. 템플릿의 변수명이 위 값과 다르면
 `netlify/functions/reservations.js`의 `build_kakao_variables`를 템플릿에 맞게 수정해야 합니다.
+
+버튼 URL을 변수로 설정할 때 Solapi 템플릿에서는 프로토콜을 고정합니다.
+
+```text
+https://#{LINK}
+```
+
+이 경우 API 변수값은 아래처럼 프로토콜 없이 전달됩니다.
+
+```text
+beamish-parfait-eb804d.netlify.app/status/res_001
+```
