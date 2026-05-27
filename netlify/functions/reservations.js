@@ -545,13 +545,9 @@ async function update_grooming_status(reservation_id, status_payload) {
   ])
 }
 
-function build_kakao_variables(reservation, customer, dog, status, status_label) {
+function build_kakao_variables(dog) {
   return {
-    '#{보호자명}': customer.customer_name,
     '#{강아지명}': dog.dog_name,
-    '#{견종}': dog.breed,
-    '#{상태}': status_label,
-    '#{픽업시간}': status.pickup_time || status.estimated_end_time || '',
   }
 }
 
@@ -608,14 +604,8 @@ async function send_kakao_status_message(reservation_id, payload = {}) {
     kakaoOptions: {
       pfId: process.env.SOLAPI_PFID,
       templateId: process.env.SOLAPI_TEMPLATE_ID,
-      variables: build_kakao_variables(
-        reservation,
-        customer,
-        dog,
-        status,
-        status_label,
-      ),
-      disableSms: process.env.SOLAPI_DISABLE_SMS === 'true',
+      variables: build_kakao_variables(dog),
+      disableSms: process.env.SOLAPI_DISABLE_SMS !== 'false',
     },
   })
 

@@ -129,16 +129,21 @@ SOLAPI_TEMPLATE_ID=알림톡 템플릿 ID
 SOLAPI_DISABLE_SMS=true
 ```
 
-`SOLAPI_DISABLE_SMS`는 선택값입니다. `true`로 설정하면 알림톡 실패 시 문자 대체발송을 막습니다.
+현재 승인 템플릿 기준 값:
+
+```text
+SOLAPI_PFID=KA01PF260526104117122wab9WoQoWr8
+SOLAPI_TEMPLATE_ID=KA01TP260526105831615oZyEPTO5Keb
+```
+
+`SOLAPI_FROM`은 솔라피에 등록된 발신번호입니다. 예: `01012345678`
+
+`SOLAPI_DISABLE_SMS`는 선택값입니다. 현재 코드는 기본적으로 대체발송을 막습니다. 문자 대체발송을 켜려면 `false`로 설정합니다.
 
 현재 코드가 알림톡 템플릿에 전달하는 변수는 아래와 같습니다.
 
 ```text
-#{보호자명}
 #{강아지명}
-#{견종}
-#{상태}
-#{픽업시간}
 ```
 
 Solapi 알림톡은 등록 및 승인된 템플릿으로만 발송됩니다. 템플릿의 변수명이 위 값과 다르면

@@ -655,7 +655,6 @@ function AdminPage({
       {message_prompt ? (
         <KakaoMessageModal
           reservation={message_prompt.reservation}
-          status_label={message_prompt.status_label}
           confirming={message_confirm}
           message_state={message_state}
           on_cancel={close_message_prompt}
@@ -721,7 +720,6 @@ function StatusConfirmModal({
 
 function KakaoMessageModal({
   reservation,
-  status_label,
   confirming,
   message_state,
   on_cancel,
@@ -741,7 +739,7 @@ function KakaoMessageModal({
         <div className="modal_header">
           <span className="page_label">Kakao message</span>
           <h2 id="kakao_message_title">
-            보호자님께 카카오톡 메시지를 전송하여 미용 상태를 전달해드리겠어요?
+            보호자님께 목욕 및 드라이 케어 시작 알림톡을 전송할까요?
           </h2>
         </div>
 
@@ -755,8 +753,8 @@ function KakaoMessageModal({
             <strong>{reservation.dog.breed}</strong>
           </div>
           <div>
-            <span>전달 상태</span>
-            <strong>{status_label}</strong>
+            <span>템플릿</span>
+            <strong>목욕 및 드라이 케어 시작</strong>
           </div>
           <div>
             <span>보호자</span>
@@ -767,7 +765,10 @@ function KakaoMessageModal({
         {confirming ? (
           <div className="message_confirm_box">
             <strong>정말 카카오톡 메시지를 전송할까요?</strong>
-            <span>전송 후에는 보호자님께 바로 안내됩니다.</span>
+            <span>
+              {reservation.dog.name} 보호자님께 승인된 알림톡 템플릿이
+              전송됩니다.
+            </span>
           </div>
         ) : null}
 
