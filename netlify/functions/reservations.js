@@ -931,6 +931,7 @@ function build_reservation_created_kakao_variables(
         : reservation.designer_id),
     '#{예약일자}': reservation.reservation_date,
     '#{예약시간}': to_time(reservation.reservation_time),
+    '#{reservation_id}': reservation.reservation_id,
     [get_solapi_reservation_link_variable_name()]: build_intake_page_link(
       reservation.reservation_id,
     ),
