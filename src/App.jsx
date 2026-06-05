@@ -36,12 +36,12 @@ const service_type_options = [
 ]
 
 const additional_service_options = [
-  '스파 케어',
-  '시니어 케어',
-  '덴탈 케어',
-  '보습 팩',
-  '발톱 정리',
-  '귀 세정',
+  { label: '스파 케어', price: '+30,000', minutes: '+20분' },
+  { label: '시니어 케어', price: '+20,000', minutes: '+15분' },
+  { label: '덴탈 케어', price: '+15,000', minutes: '+10분' },
+  { label: '머드팩 케어', price: '+20,000', minutes: '+15분' },
+  { label: '발톱 정리', price: '+5,000', minutes: '+5분' },
+  { label: '이어 케어', price: '+5,000', minutes: '+5분' },
 ]
 
 const recommended_designer = {
@@ -1749,19 +1749,23 @@ function IntakePage() {
           <div className="intake_section_header">
             <h2>예약 요청사항</h2>
           </div>
+          <div className="intake_field_title">추가 케어</div>
           <div className="additional_service_picker">
             {additional_service_options.map((service) => (
               <button
                 className={`additional_service_option ${
-                  selected_additional_services.includes(service)
+                  selected_additional_services.includes(service.label)
                     ? 'additional_service_option_active'
                     : ''
                 }`}
-                key={service}
+                key={service.label}
                 type="button"
-                onClick={() => toggle_additional_service(service)}
+                onClick={() => toggle_additional_service(service.label)}
               >
-                {service}
+                <strong>{service.label}</strong>
+                <small>
+                  추가금 {service.price}, 추가 시간 {service.minutes}
+                </small>
               </button>
             ))}
           </div>

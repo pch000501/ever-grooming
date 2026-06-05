@@ -1220,26 +1220,44 @@
 }
 
 .additional_service_picker {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
 .additional_service_option {
-  min-height: 40px;
+  display: grid;
+  gap: 4px;
+  min-height: 66px;
+  align-content: center;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 6px;
   background: #fffdf8;
   color: var(--muted);
-  padding: 0 14px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.additional_service_option strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.additional_service_option small {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .additional_service_option_active {
   border-color: rgba(174, 189, 155, 0.82);
   background: var(--mint_soft);
   color: var(--mint_dark);
+}
+
+.intake_field_title {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .intake_form_grid {
@@ -1598,7 +1616,8 @@
   .form_grid,
   .service_options,
   .designer_cards,
-  .intake_form_grid {
+  .intake_form_grid,
+  .additional_service_picker {
     grid-template-columns: 1fr;
   }
 
