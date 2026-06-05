@@ -1473,6 +1473,7 @@ function IntakePage() {
   const [form, set_form] = useState(build_intake_form)
   const [load_state, set_load_state] = useState('loading')
   const [save_state, set_save_state] = useState('')
+  const [completion_dog_name, set_completion_dog_name] = useState('')
 
   useEffect(() => {
     let canceled = false
@@ -1511,6 +1512,7 @@ function IntakePage() {
     set_selected_dog_id(dog.dog_id)
     set_form(build_intake_form(dog, intake_data.reservation))
     set_save_state('')
+    set_completion_dog_name('')
   }
 
   const update_form = (field, value) => {
@@ -1566,6 +1568,7 @@ function IntakePage() {
       set_selected_dog_id(next_selected_dog?.dog_id ?? '')
       set_form(build_intake_form(next_selected_dog, data.reservation))
       set_save_state('저장 완료')
+      set_completion_dog_name(next_selected_dog?.dog_name || form.dog_name)
     } catch (error) {
       set_save_state(error.message || '저장 실패')
     }
@@ -1788,6 +1791,29 @@ function IntakePage() {
           </button>
         </div>
       </form>
+      {completion_dog_name ? (
+        <div className="modal_backdrop" role="presentation">
+          <section
+            className="intake_complete_modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="intake_complete_title"
+          >
+            <div className="modal_header">
+              <span className="page_label">Saved</span>
+              <h2 id="intake_complete_title">정보 입력 완료</h2>
+            </div>
+            <p>{completion_dog_name} 정보 입력이 완료되었습니다.</p>
+            <button
+              className="primary_button"
+              type="button"
+              onClick={() => set_completion_dog_name('')}
+            >
+              확인
+            </button>
+          </section>
+        </div>
+      ) : null}
     </main>
   )
 }
