@@ -281,6 +281,20 @@ function require_solapi_env() {
   }
 }
 
+function require_solapi_reservation_env() {
+  const missing = [
+    'SOLAPI_API_KEY',
+    'SOLAPI_API_SECRET',
+    'SOLAPI_FROM',
+    'SOLAPI_PFID',
+    'SOLAPI_RESERVATION_TEMPLATE_ID',
+  ].filter((key) => !process.env[key])
+
+  if (missing.length > 0) {
+    throw new Error(`Missing Solapi reservation env vars: ${missing.join(', ')}`)
+  }
+}
+
 function get_status_page_host() {
   const base_url =
     process.env.STATUS_PAGE_BASE_URL ||
@@ -294,8 +308,22 @@ function get_status_page_host() {
   return base_url.replace(/^https?:\/\//, '').replace(/\/$/, '')
 }
 
+function build_public_page_url(path) {
+  return `https://${get_status_page_host()}${path}`
+}
+
 function get_solapi_link_variable_name() {
   const name = process.env.SOLAPI_STATUS_LINK_VARIABLE || 'LINK'
+
+  if (name.startsWith('#{') && name.endsWith('}')) {
+    return name
+  }
+
+  return `#{${name}}`
+}
+
+function get_solapi_reservation_link_variable_name() {
+  const name = process.env.SOLAPI_RESERVATION_LINK_VARIABLE || '정보입력링크'
 
   if (name.startsWith('#{') && name.endsWith('}')) {
     return name
@@ -627,6 +655,144 @@ async function create_reservation(payload) {
   }
 }
 
+function map_intake_dog(dog) {
+  return {
+    dog_id: dog.dog_id,
+    customer_id: dog.customer_id,
+    dog_name: dog.dog_name,
+    breed: dog.breed,
+    gender: dog.gender,
+    birth_year: dog.birth_year,
+    weight: dog.weight,
+    neutered: dog.neutered,
+    allergy: dog.allergy,
+    personality: dog.personality,
+    skin_condition: dog.skin_condition,
+    dog_note: dog.dog_note,
+  }
+}
+
+function map_intake_reservation(reservation, designer) {
+  return {
+    reservation_id: reservation.reservation_id,
+    customer_id: reservation.customer_id,
+    dog_id: reservation.dog_id,
+    reservation_date: reservation.reservation_date,
+    reservation_time: to_time(reservation.reservation_time),
+    designer_id: reservation.designer_id,
+    designer_name:
+      designer?.designer_name ??
+      (reservation.designer_id === 'designer_recommendation'
+        ? '디자이너 추천'
+        : reservation.designer_id),
+    service_type: reservation.service_type,
+    additional_service: reservation.additional_service,
+    consultation_note: reservation.consultation_note,
+  }
+}
+
+async function get_intake_data(reservation_id) {
+  const [reservation_rows, customer_rows, dog_rows, designer_rows] =
+    await Promise.all([
+      get_sheet_rows(SHEET_NAMES.reservations),
+      get_sheet_rows(SHEET_NAMES.customers),
+      get_sheet_rows(SHEET_NAMES.dogs),
+      get_sheet_rows(SHEET_NAMES.designers),
+    ])
+  const reservations = rows_to_objects(reservation_rows)
+  const customers = rows_to_objects(customer_rows)
+  const dogs = rows_to_objects(dog_rows)
+  const designers = rows_to_objects(designer_rows)
+  const reservation = find_by(reservations, 'reservation_id', reservation_id)
+
+  if (!reservation) {
+    throw new Error(`Reservation "${reservation_id}" not found`)
+  }
+
+  const customer = find_by(customers, 'customer_id', reservation.customer_id)
+  const designer = find_by(designers, 'designer_id', reservation.designer_id)
+  const customer_dogs = dogs
+    .filter((dog) => dog.customer_id === reservation.customer_id)
+    .map(map_intake_dog)
+
+  if (!customer) {
+    throw new Error(`Customer "${reservation.customer_id}" not found`)
+  }
+
+  return {
+    reservation: map_intake_reservation(reservation, designer),
+    customer: {
+      customer_id: customer.customer_id,
+      customer_name: customer.customer_name,
+      phone: customer.phone,
+      visit_count: customer.visit_count,
+    },
+    dogs: customer_dogs,
+    selected_dog_id: reservation.dog_id || customer_dogs[0]?.dog_id || '',
+    intake_link: build_intake_page_link(reservation_id),
+  }
+}
+
+async function update_intake_data(reservation_id, payload = {}) {
+  const dog_id = String(payload.dog_id ?? '').trim()
+
+  if (!dog_id) {
+    throw new Error('dog_id is required')
+  }
+
+  const dog_row_data = await get_row_by_id(SHEET_NAMES.dogs, 'dog_id', dog_id)
+  const reservation_row_data = await get_row_by_id(
+    SHEET_NAMES.reservations,
+    'reservation_id',
+    reservation_id,
+  )
+  const allowed_dog_fields = [
+    'dog_name',
+    'breed',
+    'gender',
+    'birth_year',
+    'weight',
+    'neutered',
+    'allergy',
+    'personality',
+    'skin_condition',
+    'dog_note',
+  ]
+  const allowed_reservation_fields = [
+    'additional_service',
+    'consultation_note',
+  ]
+  const dog_updates = {}
+  const reservation_updates = {
+    dog_id,
+  }
+
+  allowed_dog_fields.forEach((field) => {
+    if (Object.hasOwn(payload.dog ?? {}, field)) {
+      dog_updates[field] = payload.dog[field]
+    }
+  })
+
+  allowed_reservation_fields.forEach((field) => {
+    if (Object.hasOwn(payload.reservation ?? {}, field)) {
+      reservation_updates[field] = payload.reservation[field]
+    }
+  })
+
+  await Promise.all([
+    Object.keys(dog_updates).length > 0
+      ? update_cells(SHEET_NAMES.dogs, dog_row_data.row_number, dog_updates)
+      : Promise.resolve(),
+    update_cells(
+      SHEET_NAMES.reservations,
+      reservation_row_data.row_number,
+      reservation_updates,
+    ),
+  ])
+
+  return get_intake_data(reservation_id)
+}
+
 async function get_row_by_id(sheet_name, id_column_name, id) {
   const rows = await get_sheet_rows(sheet_name)
   const headers = rows[0] ?? []
@@ -740,10 +906,34 @@ function build_status_page_link(reservation_id) {
   return `${get_status_page_host()}/status/${reservation_id}`
 }
 
+function build_intake_page_link(reservation_id) {
+  return build_public_page_url(`/intake/${reservation_id}`)
+}
+
 function build_kakao_variables(dog, reservation_id) {
   return {
     '#{강아지명}': dog.dog_name,
     [get_solapi_link_variable_name()]: build_status_page_link(reservation_id),
+  }
+}
+
+function build_reservation_created_kakao_variables(
+  reservation,
+  dog,
+  designer,
+) {
+  return {
+    '#{강아지명}': dog.dog_name,
+    '#{디자이너이름}':
+      designer?.designer_name ??
+      (reservation.designer_id === 'designer_recommendation'
+        ? '디자이너 추천'
+        : reservation.designer_id),
+    '#{예약일자}': reservation.reservation_date,
+    '#{예약시간}': to_time(reservation.reservation_time),
+    [get_solapi_reservation_link_variable_name()]: build_intake_page_link(
+      reservation.reservation_id,
+    ),
   }
 }
 
@@ -817,11 +1007,90 @@ async function send_kakao_status_message(reservation_id, payload = {}) {
   }
 }
 
+async function send_kakao_reservation_created_message(reservation_id) {
+  require_solapi_reservation_env()
+
+  const [reservation_rows, customer_rows, dog_rows, designer_rows] =
+    await Promise.all([
+      get_sheet_rows(SHEET_NAMES.reservations),
+      get_sheet_rows(SHEET_NAMES.customers),
+      get_sheet_rows(SHEET_NAMES.dogs),
+      get_sheet_rows(SHEET_NAMES.designers),
+    ])
+  const reservations = rows_to_objects(reservation_rows)
+  const customers = rows_to_objects(customer_rows)
+  const dogs = rows_to_objects(dog_rows)
+  const designers = rows_to_objects(designer_rows)
+  const reservation = find_by(reservations, 'reservation_id', reservation_id)
+
+  if (!reservation) {
+    throw new Error(`Reservation "${reservation_id}" not found`)
+  }
+
+  const customer = find_by(customers, 'customer_id', reservation.customer_id)
+  const dog = find_by(dogs, 'dog_id', reservation.dog_id)
+  const designer = find_by(designers, 'designer_id', reservation.designer_id)
+
+  if (!customer) {
+    throw new Error(`Customer "${reservation.customer_id}" not found`)
+  }
+
+  if (!dog) {
+    throw new Error(`Dog "${reservation.dog_id}" not found`)
+  }
+
+  const to = normalize_phone(customer.phone)
+  const from = normalize_phone(process.env.SOLAPI_FROM)
+
+  if (!to) {
+    throw new Error(`Customer "${customer.customer_id}" has no phone number`)
+  }
+
+  if (!from) {
+    throw new Error('SOLAPI_FROM is empty or invalid')
+  }
+
+  const messageService = new SolapiMessageService(
+    process.env.SOLAPI_API_KEY,
+    process.env.SOLAPI_API_SECRET,
+  )
+  const result = await messageService.send({
+    to,
+    from,
+    kakaoOptions: {
+      pfId: process.env.SOLAPI_PFID,
+      templateId: process.env.SOLAPI_RESERVATION_TEMPLATE_ID,
+      variables: build_reservation_created_kakao_variables(
+        reservation,
+        dog,
+        designer,
+      ),
+      disableSms: process.env.SOLAPI_DISABLE_SMS !== 'false',
+    },
+  })
+
+  return {
+    result,
+    sent_to: to,
+    intake_link: build_intake_page_link(reservation_id),
+  }
+}
+
 export async function handler(event) {
   try {
     assert_google_env()
 
     if (event.httpMethod === 'GET') {
+      const query = event.queryStringParameters ?? {}
+
+      if (query.type === 'intake') {
+        if (!query.reservation_id) {
+          return json_response(400, { message: 'reservation_id is required' })
+        }
+
+        return json_response(200, await get_intake_data(query.reservation_id))
+      }
+
       return json_response(200, await get_sheet_data())
     }
 
@@ -840,6 +1109,13 @@ export async function handler(event) {
         await update_reservation_fields(body.reservation_id, body.payload)
       }
 
+      if (body.type === 'intake') {
+        return json_response(
+          200,
+          await update_intake_data(body.reservation_id, body.payload),
+        )
+      }
+
       if (body.type === 'kakao_status') {
         const result = await send_kakao_status_message(
           body.reservation_id,
@@ -849,6 +1125,18 @@ export async function handler(event) {
         return json_response(200, {
           ok: true,
           message: 'Kakao status message sent',
+          result,
+        })
+      }
+
+      if (body.type === 'kakao_reservation_created') {
+        const result = await send_kakao_reservation_created_message(
+          body.reservation_id,
+        )
+
+        return json_response(200, {
+          ok: true,
+          message: 'Kakao reservation message sent',
           result,
         })
       }
@@ -863,9 +1151,25 @@ export async function handler(event) {
         return json_response(400, { message: 'Unsupported POST type' })
       }
 
-      await create_reservation(body.payload ?? {})
+      const created = await create_reservation(body.payload ?? {})
+      let message_warning = ''
 
-      return json_response(201, await get_sheet_data())
+      if (body.send_message) {
+        try {
+          await send_kakao_reservation_created_message(created.reservation_id)
+        } catch (error) {
+          message_warning = error.message || 'Kakao reservation message failed'
+          console.error('reservation message failed', {
+            reservation_id: created.reservation_id,
+            message: message_warning,
+          })
+        }
+      }
+
+      return json_response(201, {
+        ...(await get_sheet_data()),
+        message_warning,
+      })
     }
 
     return json_response(405, { message: 'Method not allowed' })

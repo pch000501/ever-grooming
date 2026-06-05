@@ -1,6 +1,7 @@
 .home_page,
 .admin_page,
 .status_page,
+.intake_page,
 .empty_page {
   min-height: 100svh;
 }
@@ -906,6 +907,39 @@
   color: var(--mint_dark);
 }
 
+.reservation_message_toggle {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface_soft);
+  padding: 12px;
+}
+
+.reservation_message_toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--mint_dark);
+}
+
+.reservation_message_toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.reservation_message_toggle strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.reservation_message_toggle small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .message_confirm_box,
 .message_state_box {
   display: grid;
@@ -1015,6 +1049,214 @@
   resize: vertical;
   padding: 12px;
   line-height: 1.5;
+}
+
+.intake_page {
+  display: grid;
+  place-items: start center;
+  padding: 20px 14px 96px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(244, 242, 234, 0.98)),
+    var(--bg);
+}
+
+.intake_shell {
+  display: grid;
+  width: min(100%, 760px);
+  gap: 16px;
+}
+
+.intake_center_state {
+  min-height: 60svh;
+  place-content: center;
+  color: var(--muted);
+  font-weight: 900;
+  text-align: center;
+}
+
+.intake_header {
+  display: grid;
+  gap: 8px;
+  padding: 8px 2px 4px;
+}
+
+.intake_header h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 32px;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.intake_header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.intake_reservation_summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--line);
+}
+
+.intake_reservation_summary div {
+  display: grid;
+  gap: 5px;
+  min-height: 74px;
+  align-content: center;
+  background: #fffdf8;
+  padding: 12px;
+}
+
+.intake_reservation_summary span,
+.intake_section_header span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.intake_reservation_summary strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intake_section {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.intake_section_header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.intake_section_header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.dog_tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.dog_tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.dog_tab {
+  flex: 0 0 auto;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: var(--muted);
+  padding: 0 16px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.dog_tab_active {
+  border-color: rgba(174, 189, 155, 0.82);
+  background: var(--mint_soft);
+  color: var(--mint_dark);
+}
+
+.intake_form_grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.intake_form_grid label {
+  display: grid;
+  gap: 7px;
+}
+
+.intake_form_wide {
+  grid-column: 1 / -1;
+}
+
+.intake_form_grid label span {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.intake_form_grid input,
+.intake_form_grid select,
+.intake_form_grid textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.intake_form_grid input,
+.intake_form_grid select {
+  min-height: 46px;
+  padding: 0 12px;
+}
+
+.intake_form_grid textarea {
+  min-height: 96px;
+  resize: vertical;
+  padding: 12px;
+  line-height: 1.55;
+}
+
+.intake_form_grid input:focus,
+.intake_form_grid select:focus,
+.intake_form_grid textarea:focus {
+  outline: 2px solid rgba(174, 189, 155, 0.42);
+  outline-offset: 1px;
+}
+
+.intake_save_state {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--beige_soft);
+  color: var(--beige_dark);
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.intake_sticky_actions {
+  position: sticky;
+  bottom: 12px;
+  z-index: 10;
+  display: grid;
+  border: 1px solid rgba(222, 216, 200, 0.86);
+  border-radius: var(--radius);
+  background: rgba(255, 253, 248, 0.9);
+  padding: 10px;
+  box-shadow: 0 18px 42px rgba(74, 67, 50, 0.16);
+  backdrop-filter: blur(10px);
 }
 
 .status_page {
@@ -1197,7 +1439,8 @@
   .home_board,
   .admin_layout,
   .info_grid,
-  .control_grid {
+  .control_grid,
+  .intake_reservation_summary {
     grid-template-columns: 1fr;
   }
 
@@ -1242,6 +1485,10 @@
     font-size: 31px;
   }
 
+  .intake_header h1 {
+    font-size: 28px;
+  }
+
   .home_top p {
     font-size: 16px;
   }
@@ -1272,8 +1519,17 @@
 
   .form_grid,
   .service_options,
-  .designer_cards {
+  .designer_cards,
+  .intake_form_grid {
     grid-template-columns: 1fr;
+  }
+
+  .intake_section {
+    padding: 14px;
+  }
+
+  .intake_form_wide {
+    grid-column: auto;
   }
 
   .reservation_create_modal {

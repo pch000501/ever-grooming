@@ -255,6 +255,7 @@ async function create_reservation_to_api(payload) {
     body: JSON.stringify({
       type: 'create_reservation',
       payload,
+      send_message: payload.send_message,
     }),
   })
 
@@ -276,6 +277,56 @@ async function create_reservation_to_api(payload) {
 
 async function send_kakao_status_message(reservation_id, payload) {
   return patch_reservation_to_api(reservation_id, 'kakao_status', payload)
+}
+
+async function load_intake_from_api(reservation_id) {
+  const params = new URLSearchParams({
+    type: 'intake',
+    reservation_id,
+  })
+  const response = await fetch(`${API_URL}?${params}`)
+
+  if (!response.ok) {
+    let message = `API intake load failed: ${response.status}`
+
+    try {
+      const data = await response.json()
+      message = data.message ?? message
+    } catch {
+      message = await response.text()
+    }
+
+    throw new Error(message)
+  }
+
+  return response.json()
+}
+
+async function patch_intake_to_api(reservation_id, payload) {
+  const response = await fetch(API_URL, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'intake',
+      reservation_id,
+      payload,
+    }),
+  })
+
+  if (!response.ok) {
+    let message = `API intake update failed: ${response.status}`
+
+    try {
+      const data = await response.json()
+      message = data.message ?? message
+    } catch {
+      message = await response.text()
+    }
+
+    throw new Error(message)
+  }
+
+  return response.json()
 }
 
 function App() {
@@ -347,7 +398,11 @@ function App() {
 
     set_reservation_list(build_reservations(data))
     set_designer_list(data.designers ?? [])
-    set_sync_message('Google Sheets 저장 완료')
+    set_sync_message(
+      data.message_warning
+        ? `예약 저장 완료 / 알림톡 실패: ${data.message_warning}`
+        : 'Google Sheets 저장 완료',
+    )
 
     return data
   }
@@ -378,6 +433,7 @@ function App() {
             />
           }
         />
+        <Route path="/intake/:reservationId" element={<IntakePage />} />
         <Route
           path="/status/:reservationId"
           element={
@@ -861,6 +917,7 @@ function ReservationCreateModal({
     reservation_date: today,
     reservation_time: '',
     service_type: service_type_options[0],
+    send_message: true,
   })
   const selected_designer =
     designer_options.find((designer) => designer.id === form.designer_id) ?? null
@@ -1061,6 +1118,20 @@ function ReservationCreateModal({
               </div>
             </section>
 
+            <label className="reservation_message_toggle">
+              <input
+                type="checkbox"
+                checked={form.send_message}
+                onChange={(event) =>
+                  update_form('send_message', event.target.checked)
+                }
+              />
+              <span>
+                <strong>예약 완료 알림톡 보내기</strong>
+                <small>고객 정보 입력 링크를 함께 전송합니다.</small>
+              </span>
+            </label>
+
             {data_source !== 'sheets' ? (
               <div className="message_state_box">
                 Google Sheets 연결 상태에서만 예약을 저장할 수 있습니다.
@@ -1117,6 +1188,10 @@ function ReservationCreateModal({
               <div>
                 <span>예약 채널</span>
                 <strong>네이버</strong>
+              </div>
+              <div>
+                <span>알림톡</span>
+                <strong>{form.send_message ? '전송' : '전송 안 함'}</strong>
               </div>
             </div>
 
@@ -1327,6 +1402,341 @@ function AdminReservationGroup({
         )}
       </div>
     </section>
+  )
+}
+
+const empty_intake_dog = {
+  dog_id: '',
+  dog_name: '',
+  breed: '',
+  gender: '',
+  birth_year: '',
+  weight: '',
+  neutered: '',
+  allergy: '',
+  personality: '',
+  skin_condition: '',
+  dog_note: '',
+}
+
+function build_intake_form(dog = empty_intake_dog, reservation = {}) {
+  return {
+    dog_name: dog.dog_name ?? '',
+    breed: dog.breed ?? '',
+    gender: dog.gender ?? '',
+    birth_year: dog.birth_year ?? '',
+    weight: dog.weight ?? '',
+    neutered: dog.neutered ?? '',
+    allergy: dog.allergy ?? '',
+    personality: dog.personality ?? '',
+    skin_condition: dog.skin_condition ?? '',
+    dog_note: dog.dog_note ?? '',
+    additional_service: reservation.additional_service ?? '',
+    consultation_note: reservation.consultation_note ?? '',
+  }
+}
+
+function IntakePage() {
+  const { reservationId } = useParams()
+  const [intake_data, set_intake_data] = useState(null)
+  const [selected_dog_id, set_selected_dog_id] = useState('')
+  const [form, set_form] = useState(build_intake_form)
+  const [load_state, set_load_state] = useState('loading')
+  const [save_state, set_save_state] = useState('')
+
+  useEffect(() => {
+    let canceled = false
+
+    load_intake_from_api(reservationId)
+      .then((data) => {
+        if (canceled) return
+
+        const selected_id = data.selected_dog_id || data.dogs[0]?.dog_id || ''
+        const selected_dog =
+          data.dogs.find((dog) => dog.dog_id === selected_id) ?? data.dogs[0]
+
+        set_intake_data(data)
+        set_selected_dog_id(selected_id)
+        set_form(build_intake_form(selected_dog, data.reservation))
+        set_load_state('ready')
+      })
+      .catch((error) => {
+        if (canceled) return
+        set_load_state(error.message || '정보를 불러오지 못했습니다.')
+      })
+
+    return () => {
+      canceled = true
+    }
+  }, [reservationId])
+
+  const selected_dog = intake_data?.dogs.find(
+    (dog) => dog.dog_id === selected_dog_id,
+  )
+
+  const select_dog = (dog) => {
+    set_selected_dog_id(dog.dog_id)
+    set_form(build_intake_form(dog, intake_data.reservation))
+    set_save_state('')
+  }
+
+  const update_form = (field, value) => {
+    set_form((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const submit_intake = async (event) => {
+    event.preventDefault()
+    if (!selected_dog_id) return
+
+    try {
+      set_save_state('저장 중')
+      const data = await patch_intake_to_api(reservationId, {
+        dog_id: selected_dog_id,
+        dog: {
+          dog_name: form.dog_name,
+          breed: form.breed,
+          gender: form.gender,
+          birth_year: form.birth_year,
+          weight: form.weight,
+          neutered: form.neutered,
+          allergy: form.allergy,
+          personality: form.personality,
+          skin_condition: form.skin_condition,
+          dog_note: form.dog_note,
+        },
+        reservation: {
+          additional_service: form.additional_service,
+          consultation_note: form.consultation_note,
+        },
+      })
+      const next_selected_dog =
+        data.dogs.find((dog) => dog.dog_id === selected_dog_id) ?? data.dogs[0]
+
+      set_intake_data(data)
+      set_selected_dog_id(next_selected_dog?.dog_id ?? '')
+      set_form(build_intake_form(next_selected_dog, data.reservation))
+      set_save_state('저장 완료')
+    } catch (error) {
+      set_save_state(error.message || '저장 실패')
+    }
+  }
+
+  if (load_state === 'loading') {
+    return (
+      <main className="intake_page">
+        <section className="intake_shell intake_center_state">
+          정보를 불러오는 중입니다.
+        </section>
+      </main>
+    )
+  }
+
+  if (!intake_data) {
+    return (
+      <main className="intake_page">
+        <section className="intake_shell intake_center_state">
+          {load_state}
+        </section>
+      </main>
+    )
+  }
+
+  return (
+    <main className="intake_page">
+      <form className="intake_shell" onSubmit={submit_intake}>
+        <header className="intake_header">
+          <span className="page_label">EVER Grooming</span>
+          <h1>방문 전 정보 입력</h1>
+          <p>
+            {intake_data.customer.customer_name} 보호자님, 원활한 상담을 위해
+            아이 정보를 확인해주세요.
+          </p>
+        </header>
+
+        <section className="intake_reservation_summary">
+          <div>
+            <span>예약 일자</span>
+            <strong>{intake_data.reservation.reservation_date}</strong>
+          </div>
+          <div>
+            <span>예약 시간</span>
+            <strong>{intake_data.reservation.reservation_time}</strong>
+          </div>
+          <div>
+            <span>담당 디자이너</span>
+            <strong>{intake_data.reservation.designer_name}</strong>
+          </div>
+          <div>
+            <span>미용 방식</span>
+            <strong>{intake_data.reservation.service_type}</strong>
+          </div>
+        </section>
+
+        <section className="intake_section">
+          <div className="intake_section_header">
+            <h2>강아지 선택</h2>
+            <span>{intake_data.dogs.length}마리</span>
+          </div>
+          <div className="dog_tabs" role="tablist" aria-label="강아지 선택">
+            {intake_data.dogs.map((dog) => (
+              <button
+                className={`dog_tab ${
+                  dog.dog_id === selected_dog_id ? 'dog_tab_active' : ''
+                }`}
+                key={dog.dog_id}
+                type="button"
+                onClick={() => select_dog(dog)}
+              >
+                {dog.dog_name || '이름 미입력'}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="intake_section">
+          <div className="intake_section_header">
+            <h2>{selected_dog?.dog_name || '강아지'} 정보</h2>
+          </div>
+          <div className="intake_form_grid">
+            <label>
+              <span>강아지 이름</span>
+              <input
+                value={form.dog_name}
+                onChange={(event) => update_form('dog_name', event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              <span>견종</span>
+              <input
+                value={form.breed}
+                onChange={(event) => update_form('breed', event.target.value)}
+                placeholder="예: 비숑 프리제"
+              />
+            </label>
+            <label>
+              <span>성별</span>
+              <select
+                value={form.gender}
+                onChange={(event) => update_form('gender', event.target.value)}
+              >
+                <option value="">선택</option>
+                <option value="남아">남아</option>
+                <option value="여아">여아</option>
+              </select>
+            </label>
+            <label>
+              <span>출생연도</span>
+              <input
+                inputMode="numeric"
+                value={form.birth_year}
+                onChange={(event) => update_form('birth_year', event.target.value)}
+                placeholder="예: 2021"
+              />
+            </label>
+            <label>
+              <span>몸무게</span>
+              <input
+                inputMode="decimal"
+                value={form.weight}
+                onChange={(event) => update_form('weight', event.target.value)}
+                placeholder="예: 5.2"
+              />
+            </label>
+            <label>
+              <span>중성화 여부</span>
+              <select
+                value={form.neutered}
+                onChange={(event) => update_form('neutered', event.target.value)}
+              >
+                <option value="">선택</option>
+                <option value="TRUE">했어요</option>
+                <option value="FALSE">아니에요</option>
+              </select>
+            </label>
+            <label className="intake_form_wide">
+              <span>알러지</span>
+              <textarea
+                value={form.allergy}
+                onChange={(event) => update_form('allergy', event.target.value)}
+                placeholder="음식, 샴푸, 약품 등 알려진 알러지를 적어주세요."
+              />
+            </label>
+            <label className="intake_form_wide">
+              <span>성격</span>
+              <textarea
+                value={form.personality}
+                onChange={(event) =>
+                  update_form('personality', event.target.value)
+                }
+                placeholder="낯가림, 발 만지는 것, 드라이어 반응 등을 알려주세요."
+              />
+            </label>
+            <label className="intake_form_wide">
+              <span>피부 상태</span>
+              <textarea
+                value={form.skin_condition}
+                onChange={(event) =>
+                  update_form('skin_condition', event.target.value)
+                }
+                placeholder="피부 민감, 각질, 붉어짐 등 참고할 내용을 적어주세요."
+              />
+            </label>
+            <label className="intake_form_wide">
+              <span>강아지 메모</span>
+              <textarea
+                value={form.dog_note}
+                onChange={(event) => update_form('dog_note', event.target.value)}
+                placeholder="미용 시 꼭 참고해야 할 내용을 적어주세요."
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="intake_section">
+          <div className="intake_section_header">
+            <h2>예약 요청사항</h2>
+          </div>
+          <div className="intake_form_grid">
+            <label className="intake_form_wide">
+              <span>추가 서비스</span>
+              <textarea
+                value={form.additional_service}
+                onChange={(event) =>
+                  update_form('additional_service', event.target.value)
+                }
+                placeholder="스파, 보습팩, 치석 케어 등 희망하시는 서비스를 적어주세요."
+              />
+            </label>
+            <label className="intake_form_wide">
+              <span>상담 메모</span>
+              <textarea
+                value={form.consultation_note}
+                onChange={(event) =>
+                  update_form('consultation_note', event.target.value)
+                }
+                placeholder="원하는 스타일, 조심해야 할 부분, 전달사항을 적어주세요."
+              />
+            </label>
+          </div>
+        </section>
+
+        {save_state ? <div className="intake_save_state">{save_state}</div> : null}
+
+        <div className="intake_sticky_actions">
+          <button
+            className="primary_button"
+            type="submit"
+            disabled={save_state === '저장 중'}
+          >
+            정보 저장하기
+          </button>
+        </div>
+      </form>
+    </main>
   )
 }
 
