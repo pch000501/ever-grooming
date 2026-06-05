@@ -772,7 +772,17 @@ function AdminPage({
               <InfoRow label="담당자" value={selected_reservation.groomer} />
             </InfoSection>
 
-            <InfoSection title="강아지 정보">
+            <InfoSection
+              title="강아지 정보"
+              action={
+                <Link
+                  className="info_action_button"
+                  to={`/intake/${selected_reservation.id}`}
+                >
+                  정보 입력하기
+                </Link>
+              }
+            >
               <InfoRow label="보호자" value={selected_reservation.customer.name} />
               <InfoRow label="연락처" value={selected_reservation.customer.phone} />
               <InfoRow
@@ -1853,10 +1863,13 @@ function DataSourceBadge({ data_source, sync_message }) {
   )
 }
 
-function InfoSection({ title, children }) {
+function InfoSection({ title, action, children }) {
   return (
     <section className="info_section">
-      <h3>{title}</h3>
+      <div className="info_section_header">
+        <h3>{title}</h3>
+        {action}
+      </div>
       <dl>{children}</dl>
     </section>
   )
