@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom'
 import {
   customers as mock_customers,
+  designers as mock_designers,
   dogs as mock_dogs,
   groomingStatus as mock_grooming_status,
   reservations as mock_reservations,
@@ -27,6 +28,22 @@ const estimated_tasks = [
   { key: 'bath', label: '목욕', minutes: 30 },
   { key: 'grooming', label: '미용', minutes: 120 },
 ]
+
+const service_type_options = [
+  '디자인 미용(가위컷)',
+  '위생 미용',
+  '클리핑',
+]
+
+const recommended_designer = {
+  id: 'designer_recommendation',
+  name: '디자이너 추천',
+  position: '자동 배정',
+  specialty: '예약 상황에 맞춰 추천',
+}
+
+const designer_profile_image =
+  'https://images.unsplash.com/photo-1607746882042-944635dfe10e?auto=format&fit=crop&w=400&q=80'
 
 function get_current_timestamp() {
   const parts = new Intl.DateTimeFormat('sv-SE', {
@@ -95,17 +112,21 @@ function normalize_reservation(reservation) {
 }
 
 function normalize_status(status, reservation) {
+  const fallback_code = reservation.reservation_status === 'reserved' ? -1 : 0
+  const fallback_time = reservation.check_in_time
+
   return {
     reservation_id: status?.reservation_id ?? reservation.id,
-    current_code: Number(status?.current_code ?? 0),
-    updated_at: status?.updated_at ?? reservation.check_in_time,
-    timeline: status?.timeline ?? [{ code: 0, time: reservation.check_in_time }],
+    current_code: Number(status?.current_code ?? fallback_code),
+    updated_at: status?.updated_at ?? fallback_time,
+    timeline: status?.timeline ?? [{ code: fallback_code, time: fallback_time }],
   }
 }
 
 function build_reservations(data) {
   const source = data ?? {
     customers: mock_customers,
+    designers: mock_designers,
     dogs: mock_dogs,
     reservations: mock_reservations,
     groomingStatus: mock_grooming_status,
@@ -115,8 +136,24 @@ function build_reservations(data) {
     const reservation = normalize_reservation(raw_reservation)
     const customer = source.customers.find(
       (item) => item.id === reservation.customer_id,
-    )
-    const dog = source.dogs.find((item) => item.id === reservation.dog_id)
+    ) ?? {
+      id: reservation.customer_id,
+      name: '고객 정보 없음',
+      phone: '',
+      preferred_contact: '',
+    }
+    const dog = source.dogs.find((item) => item.id === reservation.dog_id) ?? {
+      id: reservation.dog_id || `${reservation.id}_dog_pending`,
+      customer_id: reservation.customer_id,
+      name: '반려견 미등록',
+      breed: '상담 필요',
+      age: '',
+      weight: '',
+      temperament: '',
+      allergies: '',
+      photo_url:
+        'https://images.unsplash.com/photo-1583512603805-3cc6b41f3edb?auto=format&fit=crop&w=600&q=80',
+    }
     const status = normalize_status(
       source.groomingStatus.find(
       (item) => item.reservation_id === reservation.id,
@@ -175,12 +212,39 @@ async function patch_reservation_to_api(reservation_id, type, payload) {
   return response.json()
 }
 
+async function create_reservation_to_api(payload) {
+  const response = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'create_reservation',
+      payload,
+    }),
+  })
+
+  if (!response.ok) {
+    let message = `API create failed: ${response.status}`
+
+    try {
+      const data = await response.json()
+      message = data.message ?? message
+    } catch {
+      message = await response.text()
+    }
+
+    throw new Error(message)
+  }
+
+  return response.json()
+}
+
 async function send_kakao_status_message(reservation_id, payload) {
   return patch_reservation_to_api(reservation_id, 'kakao_status', payload)
 }
 
 function App() {
   const [reservation_list, set_reservation_list] = useState(build_reservations)
+  const [designer_list, set_designer_list] = useState(mock_designers)
   const [data_source, set_data_source] = useState('mock')
   const [sync_message, set_sync_message] = useState('')
 
@@ -191,11 +255,13 @@ function App() {
       .then((data) => {
         if (canceled) return
         set_reservation_list(build_reservations(data))
+        set_designer_list(data.designers ?? [])
         set_data_source('sheets')
       })
       .catch(() => {
         if (canceled) return
         set_reservation_list(build_reservations())
+        set_designer_list(mock_designers)
         set_data_source('mock')
       })
 
@@ -235,6 +301,21 @@ function App() {
     }
   }
 
+  const create_reservation = async (payload) => {
+    if (data_source !== 'sheets') {
+      throw new Error('Google Sheets 연결 후 예약을 생성할 수 있습니다.')
+    }
+
+    set_sync_message('Google Sheets 저장 중')
+    const data = await create_reservation_to_api(payload)
+
+    set_reservation_list(build_reservations(data))
+    set_designer_list(data.designers ?? [])
+    set_sync_message('Google Sheets 저장 완료')
+
+    return data
+  }
+
   return (
     <BrowserRouter>
       <Routes>
@@ -253,6 +334,8 @@ function App() {
           element={
             <AdminPage
               reservations={reservation_list}
+              designers={designer_list}
+              create_reservation={create_reservation}
               update_reservation={update_reservation}
               data_source={data_source}
               sync_message={sync_message}
@@ -359,6 +442,8 @@ function ReservationGroup({ title, description, reservations }) {
 
 function AdminPage({
   reservations,
+  designers,
+  create_reservation,
   update_reservation,
   data_source,
   sync_message,
@@ -387,6 +472,8 @@ function AdminPage({
   const [message_prompt, set_message_prompt] = useState(null)
   const [message_confirm, set_message_confirm] = useState(false)
   const [message_state, set_message_state] = useState('')
+  const [reservation_modal_open, set_reservation_modal_open] = useState(false)
+  const [reservation_create_state, set_reservation_create_state] = useState('')
   const selected_reservation = useMemo(
     () =>
       reservations.find((reservation) => reservation.id === selected_id) ??
@@ -494,8 +581,25 @@ function AdminPage({
     )
   }
 
-  if (!selected_reservation) {
-    return <main className="empty_page">오늘 예약이 없습니다.</main>
+  const open_reservation_modal = () => {
+    set_reservation_create_state('')
+    set_reservation_modal_open(true)
+  }
+
+  const close_reservation_modal = () => {
+    set_reservation_modal_open(false)
+    set_reservation_create_state('')
+  }
+
+  const submit_new_reservation = async (payload) => {
+    try {
+      set_reservation_create_state('예약 저장 중')
+      await create_reservation(payload)
+      set_reservation_create_state('예약 생성 완료')
+      set_reservation_modal_open(false)
+    } catch (error) {
+      set_reservation_create_state(error.message || '예약 생성 실패')
+    }
   }
 
   return (
@@ -509,9 +613,20 @@ function AdminPage({
             sync_message={sync_message}
           />
         </div>
-        <Link className="text_link" to={`/status/${selected_reservation.id}`}>
-          고객 화면 보기
-        </Link>
+        <div className="admin_header_actions">
+          <button
+            className="primary_button header_button"
+            type="button"
+            onClick={open_reservation_modal}
+          >
+            예약 생성
+          </button>
+          {selected_reservation ? (
+            <Link className="text_link" to={`/status/${selected_reservation.id}`}>
+              고객 화면 보기
+            </Link>
+          ) : null}
+        </div>
       </header>
 
       <section className="admin_layout">
@@ -520,19 +635,20 @@ function AdminPage({
             title="현재 진행 중"
             count={grooming_reservations.length}
             reservations={grooming_reservations}
-            selected_id={selected_reservation.id}
+            selected_id={selected_reservation?.id}
             on_select={set_selected_id}
           />
           <AdminReservationGroup
             title="예약 일정"
             count={scheduled_reservations.length}
             reservations={scheduled_reservations}
-            selected_id={selected_reservation.id}
+            selected_id={selected_reservation?.id}
             on_select={set_selected_id}
           />
         </aside>
 
-        <section className="detail_panel">
+        {selected_reservation ? (
+          <section className="detail_panel">
           <div className="detail_top">
             <img
               className="dog_photo"
@@ -651,7 +767,23 @@ function AdminPage({
             />
           </section>
         </section>
+        ) : (
+          <section className="detail_panel empty_detail_panel">
+            <span className="page_label">No reservation</span>
+            <h2>오늘 예약이 없습니다.</h2>
+            <p>새 예약을 생성하면 이 화면에 예약 일정이 표시됩니다.</p>
+          </section>
+        )}
       </section>
+      {reservation_modal_open ? (
+        <ReservationCreateModal
+          designers={designers}
+          data_source={data_source}
+          create_state={reservation_create_state}
+          on_cancel={close_reservation_modal}
+          on_submit={submit_new_reservation}
+        />
+      ) : null}
       {pending_status ? (
         <StatusConfirmModal
           reservation={pending_status.reservation}
@@ -672,6 +804,263 @@ function AdminPage({
         />
       ) : null}
     </main>
+  )
+}
+
+function ReservationCreateModal({
+  designers,
+  data_source,
+  create_state,
+  on_cancel,
+  on_submit,
+}) {
+  const today = get_current_timestamp().slice(0, 10)
+  const time_options = Array.from({ length: 12 }, (_, index) => {
+    return `${String(index + 9).padStart(2, '0')}:00`
+  })
+  const designer_options = [recommended_designer, ...designers]
+  const [step, set_step] = useState('form')
+  const [form, set_form] = useState({
+    customer_name: '',
+    phone: '',
+    designer_id: recommended_designer.id,
+    reservation_date: today,
+    reservation_time: '10:00',
+    service_type: service_type_options[0],
+  })
+  const selected_designer =
+    designer_options.find((designer) => designer.id === form.designer_id) ??
+    recommended_designer
+  const can_submit =
+    form.customer_name.trim() &&
+    form.phone.trim() &&
+    form.designer_id &&
+    form.reservation_date &&
+    form.reservation_time &&
+    form.service_type
+  const saving = create_state === '예약 저장 중'
+
+  const update_form = (field, value) => {
+    set_form((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const request_confirm = (event) => {
+    event.preventDefault()
+    if (!can_submit) return
+    set_step('confirm')
+  }
+
+  const confirm_submit = () => {
+    if (!can_submit || saving) return
+    on_submit({
+      ...form,
+      customer_name: form.customer_name.trim(),
+      phone: form.phone.trim(),
+    })
+  }
+
+  return (
+    <div className="modal_backdrop" role="presentation">
+      <section
+        className="reservation_create_modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reservation_create_title"
+      >
+        <div className="modal_header">
+          <span className="page_label">New reservation</span>
+          <h2 id="reservation_create_title">
+            {step === 'form' ? '예약 생성' : '예약 정보 확인'}
+          </h2>
+        </div>
+
+        {step === 'form' ? (
+          <form className="reservation_form" onSubmit={request_confirm}>
+            <div className="form_grid">
+              <label>
+                <span>고객님 성함</span>
+                <input
+                  type="text"
+                  value={form.customer_name}
+                  onChange={(event) =>
+                    update_form('customer_name', event.target.value)
+                  }
+                  placeholder="홍길동"
+                  required
+                />
+              </label>
+              <label>
+                <span>전화번호</span>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(event) => update_form('phone', event.target.value)}
+                  placeholder="010-0000-0000"
+                  required
+                />
+              </label>
+              <label>
+                <span>예약 일자</span>
+                <input
+                  type="date"
+                  value={form.reservation_date}
+                  onChange={(event) =>
+                    update_form('reservation_date', event.target.value)
+                  }
+                  required
+                />
+              </label>
+              <label>
+                <span>예약 시간</span>
+                <select
+                  value={form.reservation_time}
+                  onChange={(event) =>
+                    update_form('reservation_time', event.target.value)
+                  }
+                >
+                  {time_options.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <section className="designer_picker">
+              <div className="field_header">
+                <h3>디자이너 선택</h3>
+                <span>{designer_options.length}명</span>
+              </div>
+              <div className="designer_cards">
+                {designer_options.map((designer) => (
+                  <button
+                    className={`designer_card ${
+                      designer.id === form.designer_id
+                        ? 'designer_card_active'
+                        : ''
+                    }`}
+                    key={designer.id}
+                    type="button"
+                    onClick={() => update_form('designer_id', designer.id)}
+                  >
+                    <img src={designer_profile_image} alt="" />
+                    <span>
+                      <strong>{designer.name}</strong>
+                      <small>{designer.position}</small>
+                      <em>{designer.specialty}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="service_picker">
+              <div className="field_header">
+                <h3>미용 방식</h3>
+              </div>
+              <div className="service_options">
+                {service_type_options.map((service_type) => (
+                  <button
+                    className={`service_option ${
+                      service_type === form.service_type
+                        ? 'service_option_active'
+                        : ''
+                    }`}
+                    key={service_type}
+                    type="button"
+                    onClick={() => update_form('service_type', service_type)}
+                  >
+                    {service_type}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {data_source !== 'sheets' ? (
+              <div className="message_state_box">
+                Google Sheets 연결 상태에서만 예약을 저장할 수 있습니다.
+              </div>
+            ) : null}
+            {create_state ? (
+              <div className="message_state_box">{create_state}</div>
+            ) : null}
+
+            <div className="modal_actions">
+              <button className="secondary_button" type="button" onClick={on_cancel}>
+                취소
+              </button>
+              <button
+                className="primary_button"
+                type="submit"
+                disabled={!can_submit || data_source !== 'sheets'}
+              >
+                정보 확인
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="modal_summary">
+              <div>
+                <span>고객명</span>
+                <strong>{form.customer_name}</strong>
+              </div>
+              <div>
+                <span>전화번호</span>
+                <strong>{form.phone}</strong>
+              </div>
+              <div>
+                <span>디자이너</span>
+                <strong>{selected_designer.name}</strong>
+              </div>
+              <div>
+                <span>예약 일자</span>
+                <strong>{form.reservation_date}</strong>
+              </div>
+              <div>
+                <span>예약 시간</span>
+                <strong>{form.reservation_time}</strong>
+              </div>
+              <div>
+                <span>미용 방식</span>
+                <strong>{form.service_type}</strong>
+              </div>
+              <div>
+                <span>예약 채널</span>
+                <strong>네이버</strong>
+              </div>
+            </div>
+
+            {create_state ? (
+              <div className="message_state_box">{create_state}</div>
+            ) : null}
+
+            <div className="modal_actions">
+              <button
+                className="secondary_button"
+                type="button"
+                onClick={() => set_step('form')}
+                disabled={saving}
+              >
+                수정
+              </button>
+              <button
+                className="primary_button"
+                type="button"
+                onClick={confirm_submit}
+                disabled={saving}
+              >
+                예약 생성
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+    </div>
   )
 }
 

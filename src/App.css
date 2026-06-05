@@ -277,6 +277,18 @@
   margin-bottom: 24px;
 }
 
+.admin_header_actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 10px;
+}
+
+.header_button {
+  width: auto;
+  min-width: 112px;
+}
+
 .admin_header h1 {
   margin-bottom: 0;
   font-size: 34px;
@@ -409,6 +421,25 @@
 
 .detail_panel {
   padding: 22px;
+}
+
+.empty_detail_panel {
+  display: grid;
+  min-height: 320px;
+  align-content: center;
+  gap: 8px;
+}
+
+.empty_detail_panel h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.empty_detail_panel p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .detail_top {
@@ -646,6 +677,17 @@
   padding: 22px;
 }
 
+.reservation_create_modal {
+  width: min(100%, 760px);
+  max-height: min(92svh, 820px);
+  overflow: auto;
+  border: 1px solid rgba(174, 189, 155, 0.72);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 28px 80px rgba(74, 67, 50, 0.22);
+  padding: 22px;
+}
+
 .modal_header h2 {
   margin: 8px 0 18px;
   color: var(--ink);
@@ -679,6 +721,154 @@
 .modal_summary strong {
   color: var(--ink);
   font-size: 15px;
+}
+
+.reservation_form,
+.designer_picker,
+.service_picker {
+  display: grid;
+  gap: 14px;
+}
+
+.form_grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.form_grid label {
+  display: grid;
+  gap: 7px;
+}
+
+.form_grid label span,
+.field_header h3 {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.form_grid input,
+.form_grid select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.form_grid input:focus,
+.form_grid select:focus {
+  outline: 2px solid rgba(174, 189, 155, 0.42);
+  outline-offset: 1px;
+}
+
+.field_header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field_header h3 {
+  margin: 0;
+}
+
+.field_header span {
+  border-radius: 999px;
+  background: var(--beige_soft);
+  color: var(--beige_dark);
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.designer_cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.designer_card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-height: 94px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: var(--text);
+  padding: 10px;
+  text-align: left;
+}
+
+.designer_card:hover,
+.designer_card_active {
+  border-color: rgba(174, 189, 155, 0.82);
+  background: var(--mint_soft);
+}
+
+.designer_card img {
+  width: 58px;
+  height: 58px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.designer_card span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.designer_card strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.designer_card small,
+.designer_card em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.designer_card small {
+  font-weight: 900;
+}
+
+.service_options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.service_option {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: var(--muted);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.service_option:hover,
+.service_option_active {
+  border-color: rgba(174, 189, 155, 0.82);
+  background: var(--mint_soft);
+  color: var(--mint_dark);
 }
 
 .message_confirm_box,
@@ -972,7 +1162,8 @@
   .home_board,
   .admin_layout,
   .info_grid,
-  .control_grid {
+  .control_grid,
+  .designer_cards {
     grid-template-columns: 1fr;
   }
 
@@ -1033,6 +1224,21 @@
 
   .admin_header {
     display: grid;
+  }
+
+  .admin_header_actions,
+  .header_button,
+  .admin_header_actions .text_link {
+    width: 100%;
+  }
+
+  .form_grid,
+  .service_options {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation_create_modal {
+    padding: 18px;
   }
 
   .info_row {

@@ -37,6 +37,27 @@ export const customers = [
   },
 ]
 
+export const designers = [
+  {
+    id: 'des_001',
+    name: 'Jina',
+    position: '수석 디자이너',
+    specialty: '푸들 가위컷, 얼굴 라인',
+  },
+  {
+    id: 'des_002',
+    name: 'Mina',
+    position: '펫 스타일리스트',
+    specialty: '위생 미용, 말티즈 스타일',
+  },
+  {
+    id: 'des_003',
+    name: 'Soo',
+    position: '디자이너',
+    specialty: '클리핑, 피부 민감견 케어',
+  },
+]
+
 export const dogs = [
   {
     id: 'dog_001',

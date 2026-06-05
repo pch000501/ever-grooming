@@ -190,6 +190,10 @@ function normalize_phone(value) {
   return phone
 }
 
+function normalize_phone_for_compare(value) {
+  return normalize_phone(value).replace(/\D/g, '')
+}
+
 function parse_status_code(value, fallback = -1) {
   const code = Number(value)
 
@@ -203,6 +207,17 @@ function parse_list(value) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+function parse_active_designers(values) {
+  return rows_to_objects(values)
+    .filter((designer) => parse_bool(designer.active))
+    .map((designer) => ({
+      id: designer.designer_id,
+      name: designer.designer_name,
+      position: designer.position,
+      specialty: designer.specialty,
+    }))
 }
 
 function to_time(value) {
@@ -340,7 +355,8 @@ function normalize_sheet_data(sheet_data) {
   }))
   const raw_reservations = rows_to_objects(sheet_data.valueRanges[2]?.values)
   const raw_statuses = rows_to_objects(sheet_data.valueRanges[3]?.values)
-  const designers = rows_to_objects(sheet_data.valueRanges[6]?.values)
+  const raw_designers = sheet_data.valueRanges[6]?.values
+  const designers = rows_to_objects(raw_designers)
 
   const reservations = raw_reservations.map((reservation) => {
     const status = find_by(raw_statuses, 'reservation_id', reservation.reservation_id) ?? {}
@@ -354,7 +370,11 @@ function normalize_sheet_data(sheet_data) {
       check_in_time: to_time(reservation.reservation_time),
       service: reservation.service_type,
       add_ons: parse_list(reservation.additional_service),
-      groomer: designer?.designer_name ?? reservation.designer_id,
+      groomer:
+        designer?.designer_name ??
+        (reservation.designer_id === 'designer_recommendation'
+          ? '디자이너 추천'
+          : reservation.designer_id),
       pickup_time: to_time(status.pickup_time || status.estimated_end_time),
       internal_note: status.internal_memo || reservation.consultation_note,
       daycare_requested: parse_bool(status.daycare_enabled),
@@ -385,6 +405,7 @@ function normalize_sheet_data(sheet_data) {
     reservations,
     groomingStatus,
     statusCodes: get_status_codes(sheet_data.valueRanges[5]?.values),
+    designers: parse_active_designers(raw_designers),
   }
 }
 
@@ -428,6 +449,24 @@ function column_letter(index) {
   return column
 }
 
+function get_next_id(rows, id_column_name, prefix, width = 3) {
+  const headers = rows[0] ?? []
+  const id_column = find_column(headers, id_column_name)
+  const max_number = rows.slice(1).reduce((max, row) => {
+    const value = row[id_column] ?? ''
+    const match = String(value).match(/(\d+)$/)
+    const number = match ? Number(match[1]) : 0
+
+    return Number.isNaN(number) ? max : Math.max(max, number)
+  }, 0)
+
+  return `${prefix}${String(max_number + 1).padStart(width, '0')}`
+}
+
+function row_from_fields(headers, fields) {
+  return headers.map((header) => fields[header] ?? '')
+}
+
 async function update_cell(sheet_name, row_number, column_index, value) {
   const range = `${sheet_name}!${column_letter(column_index)}${row_number}`
 
@@ -463,6 +502,112 @@ async function update_cells(sheet_name, row_number, fields) {
       update_cell(sheet_name, row_number, find_column(headers, key), value),
     ),
   )
+}
+
+async function create_reservation(payload) {
+  const customer_name = String(payload.customer_name ?? '').trim()
+  const phone = normalize_phone(payload.phone)
+  const reservation_date = String(payload.reservation_date ?? '').trim()
+  const reservation_time = to_time(payload.reservation_time)
+  const designer_id = String(payload.designer_id ?? '').trim()
+  const service_type = String(payload.service_type ?? '').trim()
+
+  if (!customer_name) {
+    throw new Error('customer_name is required')
+  }
+
+  if (!phone) {
+    throw new Error('phone is required')
+  }
+
+  if (!reservation_date) {
+    throw new Error('reservation_date is required')
+  }
+
+  if (!reservation_time) {
+    throw new Error('reservation_time is required')
+  }
+
+  if (!designer_id) {
+    throw new Error('designer_id is required')
+  }
+
+  if (!service_type) {
+    throw new Error('service_type is required')
+  }
+
+  const [customer_rows, reservation_rows] = await Promise.all([
+    get_sheet_rows(SHEET_NAMES.customers),
+    get_sheet_rows(SHEET_NAMES.reservations),
+  ])
+  const customer_headers = customer_rows[0] ?? []
+  const reservation_headers = reservation_rows[0] ?? []
+  const phone_column = find_column(customer_headers, 'phone')
+  const customer_id_column = find_column(customer_headers, 'customer_id')
+  const visit_count_column = find_column(customer_headers, 'visit_count')
+  const matched_customer_index = customer_rows.findIndex((row, index) => {
+    return (
+      index > 0 &&
+      normalize_phone_for_compare(row[phone_column]) ===
+        normalize_phone_for_compare(phone)
+    )
+  })
+  const created_at = get_korea_timestamp()
+  let customer_id
+
+  if (matched_customer_index === -1) {
+    customer_id = get_next_id(customer_rows, 'customer_id', 'cus_')
+
+    await append_row(
+      SHEET_NAMES.customers,
+      row_from_fields(customer_headers, {
+        customer_id,
+        customer_name,
+        phone,
+        visit_count: '1',
+        created_at,
+      }),
+    )
+  } else {
+    const customer_row = customer_rows[matched_customer_index]
+    const row_number = matched_customer_index + 1
+    const visit_count = Number(customer_row[visit_count_column] ?? 0)
+
+    customer_id = customer_row[customer_id_column]
+
+    await update_cell(
+      SHEET_NAMES.customers,
+      row_number,
+      visit_count_column,
+      String((Number.isNaN(visit_count) ? 0 : visit_count) + 1),
+    )
+  }
+
+  const reservation_id = get_next_id(
+    reservation_rows,
+    'reservation_id',
+    'res_',
+  )
+
+  await append_row(
+    SHEET_NAMES.reservations,
+    row_from_fields(reservation_headers, {
+      reservation_id,
+      customer_id,
+      reservation_date,
+      reservation_time,
+      designer_id,
+      service_type,
+      reservation_channel: '네이버',
+      reservation_status: 'reserved',
+      created_at,
+    }),
+  )
+
+  return {
+    reservation_id,
+    customer_id,
+  }
 }
 
 async function get_row_by_id(sheet_name, id_column_name, id) {
@@ -692,6 +837,18 @@ export async function handler(event) {
       }
 
       return json_response(200, await get_sheet_data())
+    }
+
+    if (event.httpMethod === 'POST') {
+      const body = JSON.parse(event.body || '{}')
+
+      if (body.type !== 'create_reservation') {
+        return json_response(400, { message: 'Unsupported POST type' })
+      }
+
+      await create_reservation(body.payload ?? {})
+
+      return json_response(201, await get_sheet_data())
     }
 
     return json_response(405, { message: 'Method not allowed' })
