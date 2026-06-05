@@ -725,6 +725,7 @@
 
 .reservation_form,
 .designer_picker,
+.schedule_picker,
 .service_picker {
   display: grid;
   gap: 14px;
@@ -739,6 +740,10 @@
 .form_grid label {
   display: grid;
   gap: 7px;
+}
+
+.form_grid_wide {
+  grid-column: 1 / -1;
 }
 
 .form_grid label span,
@@ -793,10 +798,10 @@
 
 .designer_card {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 12px;
   width: 100%;
-  min-height: 94px;
+  min-height: 112px;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -813,10 +818,11 @@
 }
 
 .designer_card img {
-  width: 58px;
-  height: 58px;
+  width: 72px;
+  height: 88px;
   border-radius: 6px;
   object-fit: cover;
+  object-position: center top;
 }
 
 .designer_card span {
@@ -845,6 +851,17 @@
 
 .designer_card small {
   font-weight: 900;
+}
+
+.schedule_placeholder {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: var(--surface_soft);
+  color: var(--muted);
+  padding: 14px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .service_options {

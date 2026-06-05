@@ -217,6 +217,7 @@ function parse_active_designers(values) {
       name: designer.designer_name,
       position: designer.position,
       specialty: designer.specialty,
+      profile_image: designer.profile_image,
     }))
 }
 
@@ -506,6 +507,7 @@ async function update_cells(sheet_name, row_number, fields) {
 
 async function create_reservation(payload) {
   const customer_name = String(payload.customer_name ?? '').trim()
+  const dog_name = String(payload.dog_name ?? '').trim()
   const phone = normalize_phone(payload.phone)
   const reservation_date = String(payload.reservation_date ?? '').trim()
   const reservation_time = to_time(payload.reservation_time)
@@ -518,6 +520,10 @@ async function create_reservation(payload) {
 
   if (!phone) {
     throw new Error('phone is required')
+  }
+
+  if (!dog_name) {
+    throw new Error('dog_name is required')
   }
 
   if (!reservation_date) {
@@ -536,11 +542,13 @@ async function create_reservation(payload) {
     throw new Error('service_type is required')
   }
 
-  const [customer_rows, reservation_rows] = await Promise.all([
+  const [customer_rows, dog_rows, reservation_rows] = await Promise.all([
     get_sheet_rows(SHEET_NAMES.customers),
+    get_sheet_rows(SHEET_NAMES.dogs),
     get_sheet_rows(SHEET_NAMES.reservations),
   ])
   const customer_headers = customer_rows[0] ?? []
+  const dog_headers = dog_rows[0] ?? []
   const reservation_headers = reservation_rows[0] ?? []
   const phone_column = find_column(customer_headers, 'phone')
   const customer_id_column = find_column(customer_headers, 'customer_id')
@@ -583,10 +591,17 @@ async function create_reservation(payload) {
     )
   }
 
-  const reservation_id = get_next_id(
-    reservation_rows,
-    'reservation_id',
-    'res_',
+  const dog_id = get_next_id(dog_rows, 'dog_id', 'dog_')
+  const reservation_id = get_next_id(reservation_rows, 'reservation_id', 'res_')
+
+  await append_row(
+    SHEET_NAMES.dogs,
+    row_from_fields(dog_headers, {
+      dog_id,
+      customer_id,
+      dog_name,
+      created_at,
+    }),
   )
 
   await append_row(
@@ -594,6 +609,7 @@ async function create_reservation(payload) {
     row_from_fields(reservation_headers, {
       reservation_id,
       customer_id,
+      dog_id,
       reservation_date,
       reservation_time,
       designer_id,
@@ -607,6 +623,7 @@ async function create_reservation(payload) {
   return {
     reservation_id,
     customer_id,
+    dog_id,
   }
 }
 

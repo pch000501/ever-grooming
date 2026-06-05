@@ -40,10 +40,46 @@ const recommended_designer = {
   name: '디자이너 추천',
   position: '자동 배정',
   specialty: '예약 상황에 맞춰 추천',
+  profile_image:
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
 }
 
-const designer_profile_image =
-  'https://images.unsplash.com/photo-1607746882042-944635dfe10e?auto=format&fit=crop&w=400&q=80'
+const designer_profile_images = [
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+]
+
+const designer_time_slots = {
+  designer_recommendation: [
+    '09:00',
+    '10:00',
+    '11:00',
+    '13:00',
+    '14:00',
+    '15:00',
+    '16:00',
+    '17:00',
+  ],
+  des_001: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'],
+  des_002: ['10:00', '11:00', '12:00', '13:00', '16:00', '17:00'],
+  des_003: ['09:00', '13:00', '14:00', '15:00', '17:00'],
+}
+
+function get_designer_profile_image(designer, index = 0) {
+  return (
+    designer.profile_image ||
+    designer.profileImage ||
+    designer.image_url ||
+    designer.imageUrl ||
+    designer_profile_images[index % designer_profile_images.length]
+  )
+}
+
+function get_designer_time_slots(designer_id) {
+  return designer_time_slots[designer_id] ?? designer_time_slots.designer_recommendation
+}
 
 function get_current_timestamp() {
   const parts = new Intl.DateTimeFormat('sv-SE', {
@@ -815,24 +851,25 @@ function ReservationCreateModal({
   on_submit,
 }) {
   const today = get_current_timestamp().slice(0, 10)
-  const time_options = Array.from({ length: 12 }, (_, index) => {
-    return `${String(index + 9).padStart(2, '0')}:00`
-  })
   const designer_options = [recommended_designer, ...designers]
   const [step, set_step] = useState('form')
   const [form, set_form] = useState({
     customer_name: '',
+    dog_name: '',
     phone: '',
-    designer_id: recommended_designer.id,
+    designer_id: '',
     reservation_date: today,
-    reservation_time: '10:00',
+    reservation_time: '',
     service_type: service_type_options[0],
   })
   const selected_designer =
-    designer_options.find((designer) => designer.id === form.designer_id) ??
-    recommended_designer
+    designer_options.find((designer) => designer.id === form.designer_id) ?? null
+  const time_options = selected_designer
+    ? get_designer_time_slots(selected_designer.id)
+    : []
   const can_submit =
     form.customer_name.trim() &&
+    form.dog_name.trim() &&
     form.phone.trim() &&
     form.designer_id &&
     form.reservation_date &&
@@ -847,6 +884,18 @@ function ReservationCreateModal({
     }))
   }
 
+  const select_designer = (designer_id) => {
+    const available_times = get_designer_time_slots(designer_id)
+
+    set_form((current) => ({
+      ...current,
+      designer_id,
+      reservation_time: available_times.includes(current.reservation_time)
+        ? current.reservation_time
+        : available_times[0] ?? '',
+    }))
+  }
+
   const request_confirm = (event) => {
     event.preventDefault()
     if (!can_submit) return
@@ -858,6 +907,7 @@ function ReservationCreateModal({
     on_submit({
       ...form,
       customer_name: form.customer_name.trim(),
+      dog_name: form.dog_name.trim(),
       phone: form.phone.trim(),
     })
   }
@@ -902,31 +952,15 @@ function ReservationCreateModal({
                   required
                 />
               </label>
-              <label>
-                <span>예약 일자</span>
+              <label className="form_grid_wide">
+                <span>강아지 이름</span>
                 <input
-                  type="date"
-                  value={form.reservation_date}
-                  onChange={(event) =>
-                    update_form('reservation_date', event.target.value)
-                  }
+                  type="text"
+                  value={form.dog_name}
+                  onChange={(event) => update_form('dog_name', event.target.value)}
+                  placeholder="모찌"
                   required
                 />
-              </label>
-              <label>
-                <span>예약 시간</span>
-                <select
-                  value={form.reservation_time}
-                  onChange={(event) =>
-                    update_form('reservation_time', event.target.value)
-                  }
-                >
-                  {time_options.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
               </label>
             </div>
 
@@ -936,7 +970,7 @@ function ReservationCreateModal({
                 <span>{designer_options.length}명</span>
               </div>
               <div className="designer_cards">
-                {designer_options.map((designer) => (
+                {designer_options.map((designer, index) => (
                   <button
                     className={`designer_card ${
                       designer.id === form.designer_id
@@ -945,9 +979,9 @@ function ReservationCreateModal({
                     }`}
                     key={designer.id}
                     type="button"
-                    onClick={() => update_form('designer_id', designer.id)}
+                    onClick={() => select_designer(designer.id)}
                   >
-                    <img src={designer_profile_image} alt="" />
+                    <img src={get_designer_profile_image(designer, index)} alt="" />
                     <span>
                       <strong>{designer.name}</strong>
                       <small>{designer.position}</small>
@@ -957,6 +991,47 @@ function ReservationCreateModal({
                 ))}
               </div>
             </section>
+
+            {selected_designer ? (
+              <section className="schedule_picker">
+                <div className="field_header">
+                  <h3>예약 일자와 시간</h3>
+                  <span>{selected_designer.name}</span>
+                </div>
+                <div className="form_grid">
+                  <label>
+                    <span>예약 일자</span>
+                    <input
+                      type="date"
+                      value={form.reservation_date}
+                      onChange={(event) =>
+                        update_form('reservation_date', event.target.value)
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>예약 시간</span>
+                    <select
+                      value={form.reservation_time}
+                      onChange={(event) =>
+                        update_form('reservation_time', event.target.value)
+                      }
+                    >
+                      {time_options.map((time) => (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </section>
+            ) : (
+              <div className="schedule_placeholder">
+                디자이너를 선택하면 예약 일자와 시간을 선택할 수 있습니다.
+              </div>
+            )}
 
             <section className="service_picker">
               <div className="field_header">
@@ -1014,8 +1089,12 @@ function ReservationCreateModal({
                 <strong>{form.phone}</strong>
               </div>
               <div>
+                <span>강아지 이름</span>
+                <strong>{form.dog_name}</strong>
+              </div>
+              <div>
                 <span>디자이너</span>
-                <strong>{selected_designer.name}</strong>
+                <strong>{selected_designer?.name}</strong>
               </div>
               <div>
                 <span>예약 일자</span>

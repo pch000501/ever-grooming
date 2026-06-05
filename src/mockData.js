@@ -43,18 +43,24 @@ export const designers = [
     name: 'Jina',
     position: '수석 디자이너',
     specialty: '푸들 가위컷, 얼굴 라인',
+    profile_image:
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
   },
   {
     id: 'des_002',
     name: 'Mina',
     position: '펫 스타일리스트',
     specialty: '위생 미용, 말티즈 스타일',
+    profile_image:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
   },
   {
     id: 'des_003',
     name: 'Soo',
     position: '디자이너',
     specialty: '클리핑, 피부 민감견 케어',
+    profile_image:
+      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
   },
 ]
 
