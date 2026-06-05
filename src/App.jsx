@@ -1599,7 +1599,7 @@ function IntakePage() {
       <form className="intake_shell" onSubmit={submit_intake}>
         <header className="intake_header">
           <span className="page_label">EVER Grooming</span>
-          <h1>방문 전 정보 입력</h1>
+          <h1>반려견 정보 입력</h1>
           <p>
             {intake_data.customer.customer_name} 보호자님, 원활한 상담을 위해
             아이 정보를 확인해주세요.
