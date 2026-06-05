@@ -792,17 +792,16 @@
 
 .designer_cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .designer_card {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 12px;
+  align-content: start;
+  gap: 10px;
   width: 100%;
-  min-height: 112px;
-  align-items: center;
+  min-height: 292px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fffdf8;
@@ -818,16 +817,17 @@
 }
 
 .designer_card img {
-  width: 72px;
-  height: 88px;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  height: auto;
   border-radius: 6px;
   object-fit: cover;
   object-position: center top;
 }
 
-.designer_card span {
+.designer_card_body {
   display: grid;
-  gap: 3px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -839,18 +839,36 @@
   white-space: nowrap;
 }
 
-.designer_card small,
-.designer_card em {
+.designer_card small {
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
-  font-style: normal;
+  font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.designer_card small {
+.designer_specialty {
+  display: grid;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.designer_specialty span {
+  color: var(--beige_dark);
+  font-size: 11px;
   font-weight: 900;
+}
+
+.designer_specialty em {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .schedule_placeholder {
@@ -1179,9 +1197,12 @@
   .home_board,
   .admin_layout,
   .info_grid,
-  .control_grid,
-  .designer_cards {
+  .control_grid {
     grid-template-columns: 1fr;
+  }
+
+  .designer_cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .home_top {
@@ -1250,7 +1271,8 @@
   }
 
   .form_grid,
-  .service_options {
+  .service_options,
+  .designer_cards {
     grid-template-columns: 1fr;
   }
 

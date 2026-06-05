@@ -851,7 +851,7 @@ function ReservationCreateModal({
   on_submit,
 }) {
   const today = get_current_timestamp().slice(0, 10)
-  const designer_options = [recommended_designer, ...designers]
+  const designer_options = [...designers, recommended_designer]
   const [step, set_step] = useState('form')
   const [form, set_form] = useState({
     customer_name: '',
@@ -981,11 +981,17 @@ function ReservationCreateModal({
                     type="button"
                     onClick={() => select_designer(designer.id)}
                   >
-                    <img src={get_designer_profile_image(designer, index)} alt="" />
-                    <span>
+                    <img
+                      src={get_designer_profile_image(designer, index)}
+                      alt=""
+                    />
+                    <span className="designer_card_body">
                       <strong>{designer.name}</strong>
                       <small>{designer.position}</small>
-                      <em>{designer.specialty}</em>
+                      <span className="designer_specialty">
+                        <span>전문 미용 견종</span>
+                        <em>{designer.specialty}</em>
+                      </span>
                     </span>
                   </button>
                 ))}
