@@ -35,6 +35,15 @@ const service_type_options = [
   '클리핑',
 ]
 
+const additional_service_options = [
+  '스파 케어',
+  '시니어 케어',
+  '덴탈 케어',
+  '보습 팩',
+  '발톱 정리',
+  '귀 세정',
+]
+
 const recommended_designer = {
   id: 'designer_recommendation',
   name: '디자이너 추천',
@@ -1446,6 +1455,17 @@ function build_intake_form(dog = empty_intake_dog, reservation = {}) {
   }
 }
 
+function get_selected_additional_services(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function serialize_additional_services(services) {
+  return services.join(', ')
+}
+
 function IntakePage() {
   const { reservationId } = useParams()
   const [intake_data, set_intake_data] = useState(null)
@@ -1483,6 +1503,9 @@ function IntakePage() {
   const selected_dog = intake_data?.dogs.find(
     (dog) => dog.dog_id === selected_dog_id,
   )
+  const selected_additional_services = get_selected_additional_services(
+    form.additional_service,
+  )
 
   const select_dog = (dog) => {
     set_selected_dog_id(dog.dog_id)
@@ -1495,6 +1518,20 @@ function IntakePage() {
       ...current,
       [field]: value,
     }))
+  }
+
+  const toggle_additional_service = (service) => {
+    const selected_services = get_selected_additional_services(
+      form.additional_service,
+    )
+    const next_services = selected_services.includes(service)
+      ? selected_services.filter((item) => item !== service)
+      : [...selected_services, service]
+
+    update_form(
+      'additional_service',
+      serialize_additional_services(next_services),
+    )
   }
 
   const submit_intake = async (event) => {
@@ -1639,12 +1676,11 @@ function IntakePage() {
               </select>
             </label>
             <label>
-              <span>출생연도</span>
+              <span>생년월일</span>
               <input
-                inputMode="numeric"
+                type="date"
                 value={form.birth_year}
                 onChange={(event) => update_form('birth_year', event.target.value)}
-                placeholder="예: 2021"
               />
             </label>
             <label>
@@ -1710,17 +1746,23 @@ function IntakePage() {
           <div className="intake_section_header">
             <h2>예약 요청사항</h2>
           </div>
+          <div className="additional_service_picker">
+            {additional_service_options.map((service) => (
+              <button
+                className={`additional_service_option ${
+                  selected_additional_services.includes(service)
+                    ? 'additional_service_option_active'
+                    : ''
+                }`}
+                key={service}
+                type="button"
+                onClick={() => toggle_additional_service(service)}
+              >
+                {service}
+              </button>
+            ))}
+          </div>
           <div className="intake_form_grid">
-            <label className="intake_form_wide">
-              <span>추가 서비스</span>
-              <textarea
-                value={form.additional_service}
-                onChange={(event) =>
-                  update_form('additional_service', event.target.value)
-                }
-                placeholder="스파, 보습팩, 치석 케어 등 희망하시는 서비스를 적어주세요."
-              />
-            </label>
             <label className="intake_form_wide">
               <span>상담 메모</span>
               <textarea
